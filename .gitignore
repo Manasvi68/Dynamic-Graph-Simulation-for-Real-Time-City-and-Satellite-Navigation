@@ -1,0 +1,22 @@
+#compiled binaries
+*.exe
+*.o
+*.out
+
+#IDE and OS junk
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+
+#node modules (frontend)
+node_modules/
+
+#runtime state files (generated when server runs)
+city_graph.json
+blockchain.json
+satellite_graph.json
+satellite_orbit.json
+app_mode.json
+
