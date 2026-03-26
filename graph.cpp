@@ -135,3 +135,35 @@ void CityGraph::updateRoadWeight(string from, string to, double newWeight) {
         cout << "Road from " << from << " to " << to << " not found." << endl;
     }
 }
+
+// get all roads leaving a node
+vector<Edge> CityGraph::getNeighbors(int nodeId) const {
+    auto it=adjancencyList.find(nodeId);
+    if(it !=adjancencyList.end()) {
+        return it->second;
+    }
+    return{};
+}
+//check if an intersection exists by name
+bool CityGraph::hasIntersection(string name) const {
+    return nameToId.find(name) !=nameToId.end();
+}
+//check if a direct road exists between two intersections
+bool CityGraph::has Road(string from, string to) const {
+    int fromId=getNodeId(from);
+    int toId=getNodeId(to);
+    if(fromId == -1 || toId==-1) return false;
+    auto it=adjancencyList.find(fromId);
+    if(it == adjacencylist.end()) return false;
+    const auto& edges =it->second;
+    for(int i=0;i<edges.size();i++){
+        if(edges[i].to ==toId){
+            return true;
+        }
+    }
+    return false;
+}
+//how many instersections in the city
+int CityGraph::getNodeCount() const {
+    return nodeCount;
+}
