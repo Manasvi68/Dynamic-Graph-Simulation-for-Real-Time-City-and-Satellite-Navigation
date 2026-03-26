@@ -192,3 +192,88 @@ void CityGraph::printGraph() const {
     }
     cout << "================================\n" << endl;
 }
+
+// ── save the entire city map to a JSON file ──
+void CityGraph::saveToJson(string filename) const {
+    json j;
+    j["nodeCount"] = nodeCount;
+
+    // save all node names
+    json nodesJson = json::array();
+    for (auto it = idToName.begin(); it != idToName.end(); it++) {
+        json nodeObj;
+        nodeObj["id"] = it->first;
+        nodeObj["name"] = it->second;
+        nodesJson.push_back(nodeObj);
+    }
+    j["nodes"] = nodesJson;
+
+    // save all edges
+    json edgesJson = json::array();
+    for (auto it = adjacencyList.begin(); it != adjacencyList.end(); it++) {
+        int fromId = it->first;
+        const auto& edges = it->second;
+        for (int i = 0; i < edges.size(); i++) {
+            json edgeObj;
+            edgeObj["from"] = fromId;
+            edgeObj["to"] = edges[i].to;
+            edgeObj["weight"] = edges[i].weight;
+            edgesJson.push_back(edgeObj);
+        }
+    }
+    j["edges"] = edgesJson;
+
+    // write to file
+    ofstream outFile(filename);
+    if (outFile.is_open()) {
+        outFile << j.dump(2);  // pretty print with indent of 2
+        outFile.close();
+    } else {
+        cout << "Error: couldn't open " << filename << " for writing." << endl;
+    }
+}
+
+// ── load city map from a JSON file ──
+void CityGraph::loadFromJson(string filename) {
+    ifstream inFile(filename);
+    if (!inFile.is_open()) {
+        cout << "Couldn't open " << filename << ", starting with empty graph." << endl;
+        return;
+    }
+
+    json j;
+    inFile >> j;
+    inFile.close();
+
+    // clear existing data first
+    adjacencyList.clear();
+    idToName.clear();
+    nameToId.clear();
+    nodeCount = 0;
+
+    // load nodes
+    if (j.contains("nodes")) {
+        for (auto& nodeObj : j["nodes"]) {
+            int id = nodeObj["id"];
+            string name = nodeObj["name"];
+            idToName[id] = name;
+            nameToId[name] = id;
+            adjacencyList[id] = {};
+            nodeCount++;
+        }
+    }
+
+    // load edges
+    if (j.contains("edges")) {
+        for (auto& edgeObj : j["edges"]) {
+            int fromId = edgeObj["from"];
+            int toId = edgeObj["to"];
+            double weight = edgeObj["weight"];
+
+            Edge e;
+            e.to = toId;
+            e.weight = weight;
+            adjacencyList[fromId].push_back(e);
+        }
+    }
+}
