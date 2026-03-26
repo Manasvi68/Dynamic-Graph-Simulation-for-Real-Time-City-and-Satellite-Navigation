@@ -167,3 +167,28 @@ bool CityGraph::has Road(string from, string to) const {
 int CityGraph::getNodeCount() const {
     return nodeCount;
 }
+
+// ── display the whole graph in console ──
+void CityGraph::printGraph() const {
+    cout << "\n=== City Graph (" << nodeCount << " intersections) ===" << endl;
+
+    for (auto it = adjacencyList.begin(); it != adjacencyList.end(); it++) {
+        int nodeId = it->first;
+        string nodeName = getNodeName(nodeId);
+        const auto& edges = it->second;
+
+        cout << "  [" << nodeId << "] " << nodeName << " → ";
+
+        if (edges.empty()) {
+            cout << "(no roads)";
+        } else {
+            for (int i = 0; i < edges.size(); i++) {
+                string destName = getNodeName(edges[i].to);
+                cout << destName << "(" << edges[i].weight << ")";
+                if (i < edges.size() - 1) cout << ", ";
+            }
+        }
+        cout << endl;
+    }
+    cout << "================================\n" << endl;
+}
