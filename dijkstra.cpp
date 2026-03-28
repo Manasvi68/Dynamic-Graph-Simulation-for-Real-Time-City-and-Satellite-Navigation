@@ -1,4 +1,5 @@
 #include "dijkstra.h"
+#include "graph.h"
 #include <iostream>
 #include <queue>
 #include <climits>
