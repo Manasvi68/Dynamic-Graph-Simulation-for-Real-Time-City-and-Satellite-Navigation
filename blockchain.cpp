@@ -50,3 +50,36 @@ Block Blockchain::createGenesisBlock() {
 Blockchain::Blockchain() {
     chain.push_back(createGenesisBlock());
 }
+
+// add a new event to the blockchain
+void Blockchain::addBlockFromEvent(NetworkEvent event) {
+    Block newBlock;
+    newBlock.index = chain.size();
+
+    // serialize the event to JSON for storage
+    json eventJson;
+    eventJson["type"] = event.type;
+    eventJson["from"] = event.fromNode;
+    eventJson["to"] = event.toNode;
+    eventJson["oldWeight"] = event.oldWeight;
+    eventJson["newWeight"] = event.newWeight;
+    eventJson["timestamp"] = event.timestamp;
+    newBlock.data = eventJson.dump();
+
+    // link to previous block
+    newBlock.previousHash = chain.back().hash;
+
+    // generate timestamp
+    time_t now = time(0);
+    newBlock.timestamp = ctime(&now);
+    // remove trailing newline that ctime adds
+    if (!newBlock.timestamp.empty() && newBlock.timestamp.back() == '\n') {
+        newBlock.timestamp.pop_back();
+    }
+
+    // compute this block's hash
+    newBlock.hash = computeBlockHash(newBlock.index, newBlock.data,
+                                      newBlock.previousHash, newBlock.timestamp);
+
+    chain.push_back(newBlock);
+}
