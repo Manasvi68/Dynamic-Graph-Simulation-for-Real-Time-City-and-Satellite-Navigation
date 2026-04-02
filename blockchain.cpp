@@ -201,7 +201,7 @@ const vector<Block>& Blockchain::getChain() const {
 // compile: g++ -std=c++17 -o blockchain_test blockchain.cpp
 // run: ./blockchain_test
 
-int main() {
+int blockchain_main() {
     cout << "--- Testing Blockchain ---\n" << endl;
 
     Blockchain chain;

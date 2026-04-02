@@ -303,7 +303,7 @@ const unordered_map<string, int>& CityGraph::getIdMap() const {
 // compile: g++ -std=c++17 -o graph_test graph.cpp
 // run: ./graph_test
 
-int main() {
+int graph_main() {
     cout << "--- Testing CityGraph ---\n" << endl;
 
     CityGraph city;
