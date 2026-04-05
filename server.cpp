@@ -115,3 +115,86 @@ static string urlDecode(const string& str) {
     }
     return result;
 }
+
+// ── send an HTTP response ──
+void sendResponse(SOCKET client, int statusCode, const string& contentType, const string& body) {
+    string statusText = "OK";
+    if (statusCode == 404) statusText = "Not Found";
+    if (statusCode == 400) statusText = "Bad Request";
+    if (statusCode == 500) statusText = "Internal Server Error";
+
+    ostringstream response;
+    response << "HTTP/1.1 " << statusCode << " " << statusText << "\r\n";
+    response << "Content-Type: " << contentType << "\r\n";
+    response << "Content-Length: " << body.size() << "\r\n";
+    response << "Access-Control-Allow-Origin: *\r\n";            // CORS — let frontend on different port access us
+    response << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
+    response << "Access-Control-Allow-Headers: Content-Type\r\n";
+    response << "Connection: close\r\n";
+    response << "\r\n";
+    response << body;
+
+    string responseStr = response.str();
+    send(client, responseStr.c_str(), responseStr.size(), 0);
+}
+
+// shortcut to send a JSON response
+void sendJson(SOCKET client, const json& j) {
+    sendResponse(client, 200, "application/json", j.dump(2));
+}
+
+// ── guess content type from file extension ──
+static string guessContentType(const string& path) {
+    if (path.find(".html") != string::npos) return "text/html";
+    if (path.find(".css") != string::npos) return "text/css";
+    if (path.find(".js") != string::npos) return "application/javascript";
+    if (path.find(".json") != string::npos) return "application/json";
+    if (path.find(".png") != string::npos) return "image/png";
+    if (path.find(".jpg") != string::npos) return "image/jpeg";
+    if (path.find(".svg") != string::npos) return "image/svg+xml";
+    if (path.find(".ico") != string::npos) return "image/x-icon";
+    return "text/plain";
+}
+
+// ── serve a static file from disk ──
+void serveStaticFile(SOCKET client, const string& urlPath) {
+    // figure out which directory to serve from
+    string staticDir = STATIC_DIR_REACT;
+
+    // check if React build exists
+    ifstream testFile(staticDir + "/index.html");
+    if (!testFile.is_open()) {
+        staticDir = STATIC_DIR_FALLBACK;  // fall back to web/ folder
+    } else {
+        testFile.close();
+    }
+
+    // map URL path to file path
+    string filePath = staticDir;
+    if (urlPath == "/" || urlPath.empty()) {
+        filePath += "/index.html";
+    } else {
+        filePath += urlPath;
+    }
+
+    // try to open the file
+    ifstream file(filePath, ios::binary);
+    if (!file.is_open()) {
+        // for SPA routing: if file not found, serve index.html
+        // (React Router handles the routing client-side)
+        filePath = staticDir + "/index.html";
+        file.open(filePath, ios::binary);
+        if (!file.is_open()) {
+            sendResponse(client, 404, "text/plain", "File not found");
+            return;
+        }
+    }
+
+    // read entire file into string
+    ostringstream contents;
+    contents << file.rdbuf();
+    file.close();
+
+    string contentType = guessContentType(filePath);
+    sendResponse(client, 200, contentType, contents.str());
+}
