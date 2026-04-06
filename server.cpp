@@ -198,3 +198,327 @@ void serveStaticFile(SOCKET client, const string& urlPath) {
     string contentType = guessContentType(filePath);
     sendResponse(client, 200, contentType, contents.str());
 }
+
+// ── handle all /api/ requests ──
+void handleApiRequest(SOCKET client, const HttpRequest& req) {
+
+    // ── GET /api/graph ──
+    if (req.method == "GET" && req.path == "/api/graph") {
+        json j;
+
+        CityGraph* activeGraph;
+        if (currentMode == "satellite" && satWorld != nullptr) {
+            activeGraph = &(satWorld->getGraph());
+        } else {
+            activeGraph = &cityGraph;
+        }
+
+        j["mode"] = currentMode;
+        j["nodeCount"] = activeGraph->getNodeCount();
+
+        // build nodes array
+        json nodesArr = json::array();
+        const auto& nameMap = activeGraph->getNameMap();
+        for (auto it = nameMap.begin(); it != nameMap.end(); it++) {
+            json nodeObj;
+            nodeObj["id"] = it->first;
+            nodeObj["name"] = it->second;
+
+            // include positions if in satellite mode
+            if (currentMode == "satellite" && satWorld != nullptr) {
+                auto px = satWorld->getPositionsX();
+                auto py = satWorld->getPositionsY();
+                if (it->first < px.size()) {
+                    nodeObj["posX"] = px[it->first];
+                    nodeObj["posY"] = py[it->first];
+                }
+            }
+
+            nodesArr.push_back(nodeObj);
+        }
+        j["nodes"] = nodesArr;
+
+        // build edges array
+        json edgesArr = json::array();
+        const auto& adjList = activeGraph->getAdjacencyList();
+        for (auto it = adjList.begin(); it != adjList.end(); it++) {
+            int fromId = it->first;
+            const auto& edges = it->second;
+            for (int i = 0; i < edges.size(); i++) {
+                json edgeObj;
+                edgeObj["from"] = fromId;
+                edgeObj["fromName"] = activeGraph->getNodeName(fromId);
+                edgeObj["to"] = edges[i].to;
+                edgeObj["toName"] = activeGraph->getNodeName(edges[i].to);
+                edgeObj["weight"] = edges[i].weight;
+                edgesArr.push_back(edgeObj);
+            }
+        }
+        j["edges"] = edgesArr;
+
+        sendJson(client, j);
+        return;
+    }
+
+    // ── GET /api/blockchain ──
+    if (req.method == "GET" && req.path == "/api/blockchain") {
+        json j = json::array();
+        const auto& chain = blockchain.getChain();
+        for (int i = 0; i < chain.size(); i++) {
+            json blockObj;
+            blockObj["index"] = chain[i].index;
+            blockObj["hash"] = chain[i].hash;
+            blockObj["previousHash"] = chain[i].previousHash;
+            blockObj["timestamp"] = chain[i].timestamp;
+
+            // try to parse the data field as JSON for cleaner output
+            try {
+                blockObj["data"] = json::parse(chain[i].data);
+            } catch (...) {
+                blockObj["data"] = chain[i].data;  // genesis block has plain string
+            }
+
+            j.push_back(blockObj);
+        }
+        sendJson(client, j);
+        return;
+    }
+
+    // ── GET /api/mode ──
+    if (req.method == "GET" && req.path == "/api/mode") {
+        json j;
+        j["mode"] = currentMode;
+        sendJson(client, j);
+        return;
+    }
+
+        // ── GET /api/path?from=X&to=Y&algo=dijkstra|astar ──
+    if (req.method == "GET" && req.path == "/api/path") {
+        string fromName = urlDecode(getQueryParam(req.query, "from"));
+        string toName = urlDecode(getQueryParam(req.query, "to"));
+        string algo = getQueryParam(req.query, "algo");
+
+        if (fromName.empty() || toName.empty()) {
+            sendResponse(client, 400, "application/json", "{\"error\":\"Missing from or to parameter\"}");
+            return;
+        }
+
+        if (algo.empty()) algo = "dijkstra";  // default
+
+        CityGraph* activeGraph;
+        if (currentMode == "satellite" && satWorld != nullptr) {
+            activeGraph = &(satWorld->getGraph());
+        } else {
+            activeGraph = &cityGraph;
+        }
+
+        PathResult result;
+        if (algo == "astar") {
+            if (currentMode == "satellite" && satWorld != nullptr) {
+                // use Euclidean heuristic with real positions
+                result = runAstar(*activeGraph, fromName, toName,
+                                  satWorld->getPositionsX(), satWorld->getPositionsY());
+            } else {
+                result = runAstar(*activeGraph, fromName, toName);
+            }
+        } else {
+            result = runDijkstra(*activeGraph, fromName, toName);
+        }
+
+        json j;
+        j["found"] = result.found;
+        j["totalCost"] = result.totalCost;
+        j["nodesExplored"] = result.nodesExplored;
+        j["algorithm"] = algo;
+
+        json pathArr = json::array();
+        for (int i = 0; i < result.path.size(); i++) {
+            json step;
+            step["id"] = result.path[i];
+            step["name"] = activeGraph->getNodeName(result.path[i]);
+            pathArr.push_back(step);
+        }
+        j["path"] = pathArr;
+
+        sendJson(client, j);
+        return;
+    }
+
+        // ── POST /api/sim/step ──
+    if (req.method == "POST" && req.path == "/api/sim/step") {
+        if (currentMode == "satellite" && satWorld != nullptr) {
+            satWorld->orbitStep();
+            satWorld->getGraph().saveToJson("satellite_graph.json");
+            satWorld->saveToFiles("satellite_orbit.json");
+        } else {
+            if (trafficSim != nullptr) {
+                trafficSim->stepOnce();
+            }
+            cityGraph.saveToJson("city_graph.json");
+        }
+        blockchain.saveToJson("blockchain.json");
+
+        json j;
+        j["status"] = "ok";
+        j["mode"] = currentMode;
+        sendJson(client, j);
+        return;
+    }
+
+    // ── POST /api/road/update ──
+    if (req.method == "POST" && req.path == "/api/road/update") {
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (...) {
+            sendResponse(client, 400, "application/json", "{\"error\":\"Invalid JSON body\"}");
+            return;
+        }
+
+        string from = body.value("from", "");
+        string to = body.value("to", "");
+        double weight = body.value("weight", 0.0);
+
+        if (from.empty() || to.empty() || weight <= 0) {
+            sendResponse(client, 400, "application/json", "{\"error\":\"Need from, to, and weight > 0\"}");
+            return;
+        }
+
+        CityGraph* activeGraph = (currentMode == "satellite" && satWorld)
+                                  ? &(satWorld->getGraph()) : &cityGraph;
+
+        // find old weight for the event
+        double oldWeight = 0;
+        int fromId = activeGraph->getNodeId(from);
+        if (fromId != -1) {
+            vector<Edge> neighbors = activeGraph->getNeighbors(fromId);
+            for (int i = 0; i < neighbors.size(); i++) {
+                if (neighbors[i].to == activeGraph->getNodeId(to)) {
+                    oldWeight = neighbors[i].weight;
+                    break;
+                }
+            }
+        }
+
+        activeGraph->updateRoadWeight(from, to, weight);
+
+        // log to blockchain
+        NetworkEvent event;
+        event.type = "ROAD_UPDATE";
+        event.fromNode = from;
+        event.toNode = to;
+        event.oldWeight = oldWeight;
+        event.newWeight = weight;
+        event.timestamp = to_string(time(0));
+        blockchain.addBlockFromEvent(event);
+
+        cityGraph.saveToJson("city_graph.json");
+        blockchain.saveToJson("blockchain.json");
+
+        json j;
+        j["status"] = "ok";
+        sendJson(client, j);
+        return;
+    }
+
+    // ── POST /api/road/close ──
+    if (req.method == "POST" && req.path == "/api/road/close") {
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (...) {
+            sendResponse(client, 400, "application/json", "{\"error\":\"Invalid JSON body\"}");
+            return;
+        }
+
+        string from = body.value("from", "");
+        string to = body.value("to", "");
+
+        CityGraph* activeGraph = (currentMode == "satellite" && satWorld)
+                                  ? &(satWorld->getGraph()) : &cityGraph;
+
+        // find old weight
+        double oldWeight = 0;
+        int fromId = activeGraph->getNodeId(from);
+        if (fromId != -1) {
+            vector<Edge> neighbors = activeGraph->getNeighbors(fromId);
+            for (int i = 0; i < neighbors.size(); i++) {
+                if (neighbors[i].to == activeGraph->getNodeId(to)) {
+                    oldWeight = neighbors[i].weight;
+                    break;
+                }
+            }
+        }
+
+        activeGraph->removeRoad(from, to);
+
+        NetworkEvent event;
+        event.type = "ROAD_CLOSED";
+        event.fromNode = from;
+        event.toNode = to;
+        event.oldWeight = oldWeight;
+        event.newWeight = 0;
+        event.timestamp = to_string(time(0));
+        blockchain.addBlockFromEvent(event);
+
+        cityGraph.saveToJson("city_graph.json");
+        blockchain.saveToJson("blockchain.json");
+
+        json j;
+        j["status"] = "ok";
+        sendJson(client, j);
+        return;
+    }
+
+    // ── POST /api/mode ──
+    if (req.method == "POST" && req.path == "/api/mode") {
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (...) {
+            sendResponse(client, 400, "application/json", "{\"error\":\"Invalid JSON\"}");
+            return;
+        }
+
+        string newMode = body.value("mode", "city");
+
+        if (newMode == "satellite") {
+            if (satWorld == nullptr) {
+                satWorld = new SatelliteWorld(&blockchain, 15.0);
+                satWorld->addBody("Sat-Alpha",   0,  0, 10, 0.0, 0.2);
+                satWorld->addBody("Sat-Beta",    0,  0, 12, 1.0, 0.15);
+                satWorld->addBody("Sat-Gamma",   5,  5,  8, 2.0, 0.25);
+                satWorld->addBody("Sat-Delta",  -5,  0, 15, 0.5, 0.1);
+                satWorld->addBody("Sat-Epsilon", 0, -5,  9, 3.0, 0.3);
+                satWorld->orbitStep();  // initial topology build
+            }
+            currentMode = "satellite";
+        } else {
+            currentMode = "city";
+        }
+
+        // save mode preference
+        json modeJson;
+        modeJson["mode"] = currentMode;
+        ofstream modeFile("app_mode.json");
+        if (modeFile.is_open()) {
+            modeFile << modeJson.dump(2);
+            modeFile.close();
+        }
+
+        json j;
+        j["status"] = "ok";
+        j["mode"] = currentMode;
+        sendJson(client, j);
+        return;
+    }
+
+    // ── OPTIONS (CORS preflight) ──
+    if (req.method == "OPTIONS") {
+        sendResponse(client, 200, "text/plain", "");
+        return;
+    }
+
+    // ── unknown API route ──
+    sendResponse(client, 404, "application/json", "{\"error\":\"Not found\"}");
+}
