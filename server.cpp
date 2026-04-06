@@ -522,3 +522,155 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
     // ── unknown API route ──
     sendResponse(client, 404, "application/json", "{\"error\":\"Not found\"}");
 }
+
+// ── initialize the default city graph ──
+static void initDefaultCity() {
+    cityGraph.addIntersection("Connaught Place");
+    cityGraph.addIntersection("Chandni Chowk");
+    cityGraph.addIntersection("Karol Bagh");
+    cityGraph.addIntersection("Saket");
+    cityGraph.addIntersection("Dwarka");
+    cityGraph.addIntersection("Nehru Place");
+    cityGraph.addIntersection("Lajpat Nagar");
+    cityGraph.addIntersection("Hauz Khas");
+    cityGraph.addIntersection("Rohini");
+    cityGraph.addIntersection("Janakpuri");
+
+    cityGraph.addRoad("Connaught Place", "Chandni Chowk", 4.0);
+    cityGraph.addRoad("Connaught Place", "Karol Bagh", 3.5);
+    cityGraph.addRoad("Connaught Place", "Nehru Place", 6.0);
+    cityGraph.addRoad("Chandni Chowk", "Rohini", 12.0);
+    cityGraph.addRoad("Karol Bagh", "Janakpuri", 8.0);
+    cityGraph.addRoad("Karol Bagh", "Dwarka", 14.0);
+    cityGraph.addRoad("Saket", "Hauz Khas", 3.0);
+    cityGraph.addRoad("Saket", "Nehru Place", 5.0);
+    cityGraph.addRoad("Nehru Place", "Lajpat Nagar", 3.0);
+    cityGraph.addRoad("Lajpat Nagar", "Hauz Khas", 4.0);
+    cityGraph.addRoad("Hauz Khas", "Dwarka", 10.0);
+    cityGraph.addRoad("Dwarka", "Janakpuri", 5.0);
+    cityGraph.addRoad("Rohini", "Janakpuri", 9.0);
+    cityGraph.addRoad("Connaught Place", "Lajpat Nagar", 7.0);
+}
+
+int main() {
+    cout << "=== DSA Project Server ===" << endl;
+
+    // try to load saved state, or create default city
+    ifstream cityFile("city_graph.json");
+    if (cityFile.is_open()) {
+        cityFile.close();
+        cityGraph.loadFromJson("city_graph.json");
+        cout << "Loaded city graph from file." << endl;
+    } else {
+        initDefaultCity();
+        cout << "Created default city graph." << endl;
+    }
+
+    // load blockchain if exists
+    ifstream chainFile("blockchain.json");
+    if (chainFile.is_open()) {
+        chainFile.close();
+        blockchain.loadFromJson("blockchain.json");
+        cout << "Loaded blockchain from file." << endl;
+    }
+
+    // load mode preference
+    ifstream modeFile("app_mode.json");
+    if (modeFile.is_open()) {
+        json modeJson;
+        modeFile >> modeJson;
+        modeFile.close();
+        if (modeJson.contains("mode")) {
+            currentMode = modeJson["mode"];
+        }
+    }
+
+    // if in satellite mode, restore satellite state
+    if (currentMode == "satellite") {
+        satWorld = new SatelliteWorld(&blockchain, 15.0);
+        ifstream orbitFile("satellite_orbit.json");
+        if (orbitFile.is_open()) {
+            orbitFile.close();
+            satWorld->loadFromFiles("satellite_orbit.json");
+            cout << "Loaded satellite orbit state." << endl;
+        }
+    }
+
+    // create traffic simulator
+    trafficSim = new TrafficSimulator(&cityGraph, &blockchain);
+
+    // ── start Winsock ──
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        cout << "WSAStartup failed!" << endl;
+        return 1;
+    }
+
+    // create socket
+    SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (serverSocket == INVALID_SOCKET) {
+        cout << "Socket creation failed!" << endl;
+        WSACleanup();
+        return 1;
+    }
+
+    // allow port reuse (helpful when restarting quickly)
+    int opt = 1;
+    setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+
+    // bind to port
+    sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(PORT);
+
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        cout << "Bind failed! Port " << PORT << " might already be in use." << endl;
+        cout << "Try: netstat -ano | findstr :" << PORT << endl;
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    // start listening
+    if (listen(serverSocket, 10) == SOCKET_ERROR) {
+        cout << "Listen failed!" << endl;
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    cout << "\nServer running on http://localhost:" << PORT << endl;
+    cout << "Press Ctrl+C to stop.\n" << endl;
+
+    // ── main accept loop ──
+    while (true) {
+        SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
+        if (clientSocket == INVALID_SOCKET) continue;
+
+        // read the request (up to 8KB)
+        char buffer[8192];
+        memset(buffer, 0, sizeof(buffer));
+        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+
+        if (bytesReceived > 0) {
+            string rawRequest(buffer, bytesReceived);
+            HttpRequest req = parseRequest(rawRequest);
+
+            if (req.path.substr(0, 4) == "/api") {
+                handleApiRequest(clientSocket, req);
+            } else {
+                serveStaticFile(clientSocket, req.path);
+            }
+        }
+
+        closesocket(clientSocket);
+    }
+
+    // cleanup (never actually reached, but good practice)
+    delete trafficSim;
+    delete satWorld;
+    closesocket(serverSocket);
+    WSACleanup();
+    return 0;
+}
