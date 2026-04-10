@@ -53,11 +53,63 @@ function App() {
   }
 
   // placeholder for event handlers (Day 13 will fill these in)
-  const handleFindPath = async () => { /* Day 13 */ };
-  const handleSimStep = async () => { /* Day 13 */ };
-  const handleUpdateRoad = async () => { /* Day 13 */ };
-  const handleCloseRoad = async () => { /* Day 13 */ };
-  const handleModeSwitch = async () => { /* Day 13 */ };
+    const handleFindPath = async () => {
+    if (!fromNode || !toNode) return;
+    try {
+      const result = await api.findPath(fromNode, toNode, algo);
+      setPathData(result);
+    } catch (err) {
+      console.error('Path error:', err);
+    }
+  };
+  
+  const handleSimStep = async () => {
+    try {
+      await api.simStep();
+      await refreshData();
+      setPathData(null); // clear old path since graph changed
+    } catch (err) {
+      console.error('Sim step error:', err);
+    }
+  };
+
+  const handleUpdateRoad = async () => {
+    if (!editFrom || !editTo || !editWeight) return;
+    try {
+      await api.updateRoad(editFrom, editTo, parseFloat(editWeight));
+      await refreshData();
+      setPathData(null);
+    } catch (err) {
+      console.error('Update road error:', err);
+    }
+  };
+
+  const handleCloseRoad = async () => {
+    if (!editFrom || !editTo) return;
+    try {
+      await api.closeRoad(editFrom, editTo);
+      await refreshData();
+      setPathData(null);
+    } catch (err) {
+      console.error('Close road error:', err);
+    }
+  };
+  
+  const handleModeSwitch = async () => {
+    try {
+      const newMode = mode === 'city' ? 'satellite' : 'city';
+      await api.setMode(newMode);
+      setMode(newMode);
+      setPathData(null);
+      // reload graph for the new mode
+      const graphRes = await api.getGraph();
+      setGraphData(graphRes);
+      const chainRes = await api.getBlockchain();
+      setBlocks(chainRes);
+    } catch (err) {
+      console.error('Mode switch error:', err);
+    }
+  };
 
   if (loading) {
     return (
@@ -107,13 +159,80 @@ function App() {
             <p className="text-xs text-gray-500">Controls coming Day 13...</p>
           </section>
 
-          {/* simulation section — Day 13 */}
+                    {/* pathfinding section */}
           <section>
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
-              <Zap size={16} className="text-amber-400" />
-              Simulation
+              <Route size={16} className="text-cyan-400" />
+              Find Path
             </h2>
-            <p className="text-xs text-gray-500">Controls coming Day 13...</p>
+            <div className="space-y-2">
+              <select
+                value={fromNode}
+                onChange={(e) => setFromNode(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm"
+              >
+                <option value="">From...</option>
+                {nodeNames.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+
+              <select
+                value={toNode}
+                onChange={(e) => setToNode(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm"
+              >
+                <option value="">To...</option>
+                {nodeNames.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setAlgo('dijkstra')}
+                  className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
+                    algo === 'dijkstra'
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  Dijkstra
+                </button>
+                <button
+                  onClick={() => setAlgo('astar')}
+                  className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
+                    algo === 'astar'
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  A*
+                </button>
+              </div>
+
+              <button
+                onClick={handleFindPath}
+                className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-sm font-medium transition-colors"
+              >
+                Find Shortest Path
+              </button>
+
+              {/* path result display */}
+              {pathData && pathData.found && (
+                <div className="glass-panel rounded p-2 mt-2 text-xs space-y-1">
+                  <div className="text-cyan-300 font-medium">
+                    Cost: {pathData.totalCost.toFixed(2)} | Explored: {pathData.nodesExplored} nodes
+                  </div>
+                  <div className="text-gray-400">
+                    {pathData.path.map(s => s.name).join(' → ')}
+                  </div>
+                </div>
+              )}
+              {pathData && !pathData.found && (
+                <div className="text-red-400 text-xs mt-1">No path found!</div>
+              )}
+            </div>
           </section>
 
           {/* blockchain section */}
@@ -126,6 +245,75 @@ function App() {
           </section>
         </aside>
 
+                  {/* simulation section */}
+          <section>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
+              <Zap size={16} className="text-amber-400" />
+              Simulation
+            </h2>
+            <div className="space-y-3">
+              <button
+                onClick={handleSimStep}
+                className="w-full py-2 bg-amber-600 hover:bg-amber-500 rounded text-sm font-medium transition-colors"
+              >
+                Run Simulation Step
+              </button>
+
+              {/* road update form */}
+              <div className="space-y-1">
+                <label className="text-xs text-gray-500">Update Road Weight</label>
+                <div className="flex gap-1">
+                  <select
+                    value={editFrom}
+                    onChange={(e) => setEditFrom(e.target.value)}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-xs"
+                  >
+                    <option value="">From</option>
+                    {nodeNames.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={editTo}
+                    onChange={(e) => setEditTo(e.target.value)}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-xs"
+                  >
+                    <option value="">To</option>
+                    {nodeNames.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-1">
+                  <input
+                    type="number"
+                    placeholder="Weight"
+                    value={editWeight}
+                    onChange={(e) => setEditWeight(e.target.value)}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs"
+                    min="0.1"
+                    step="0.1"
+                  />
+                  <button
+                    onClick={handleUpdateRoad}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-xs font-medium transition-colors"
+                  >
+                    Update
+                  </button>
+                </div>
+              </div>
+
+              {/* road close */}
+              <button
+                onClick={handleCloseRoad}
+                disabled={!editFrom || !editTo}
+                className="w-full py-1.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-700 disabled:text-gray-500 rounded text-xs font-medium transition-colors"
+              >
+                Close Road ({editFrom || '?'} → {editTo || '?'})
+              </button>
+            </div>
+          </section>
+        
         {/* map area */}
         <main className="flex-1 m-2 ml-0 rounded-lg overflow-hidden">
           <GraphMap graphData={graphData} pathData={pathData} mode={mode} />
