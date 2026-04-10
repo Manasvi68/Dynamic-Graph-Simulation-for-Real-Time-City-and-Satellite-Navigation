@@ -1,0 +1,78 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #0f0f1a;
+    color: #e0e0e0;
+    min-height: 100vh;
+}
+
+header {
+    padding: 20px 30px;
+    border-bottom: 1px solid #222;
+    display: flex;
+    align-items: baseline;
+    gap: 15px;
+}
+
+header h1 { font-size: 1.3rem; color: #22d3ee; }
+.subtitle { font-size: 0.8rem; color: #666; }
+
+main {
+    padding: 20px 30px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    max-width: 1200px;
+}
+
+.panel {
+    background: rgba(30, 30, 46, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.panel h2 {
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+    color: #94a3b8;
+}
+
+pre {
+    background: #0a0a15;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    max-height: 250px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin-bottom: 10px;
+}
+
+input, select {
+    background: #1e1e2e;
+    border: 1px solid #333;
+    color: #e0e0e0;
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    display: block;
+    width: 100%;
+}
+
+button {
+    background: #22d3ee;
+    color: #0f0f1a;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 5px;
+}
+
+button:hover { background: #06b6d4; }

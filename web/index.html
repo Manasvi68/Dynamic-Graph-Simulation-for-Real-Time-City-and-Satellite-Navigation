@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSA Project — Graph Simulation</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Dynamic Graph Simulation</h1>
+        <span class="subtitle">Fallback UI — build the React frontend for the full experience</span>
+    </header>
+
+    <main>
+        <section class="panel">
+            <h2>Graph</h2>
+            <pre id="graph-output">Loading...</pre>
+            <button onclick="loadGraph()">Refresh Graph</button>
+        </section>
+
+        <section class="panel">
+            <h2>Find Path</h2>
+            <input type="text" id="path-from" placeholder="From (e.g. Connaught Place)">
+            <input type="text" id="path-to" placeholder="To (e.g. Dwarka)">
+            <select id="path-algo">
+                <option value="dijkstra">Dijkstra</option>
+                <option value="astar">A*</option>
+            </select>
+            <button onclick="findPath()">Find Shortest Path</button>
+            <pre id="path-output"></pre>
+        </section>
+
+        <section class="panel">
+            <h2>Simulation</h2>
+            <button onclick="simStep()">Run Simulation Step</button>
+        </section>
+
+        <section class="panel">
+            <h2>Blockchain</h2>
+            <pre id="chain-output">Loading...</pre>
+            <button onclick="loadChain()">Refresh</button>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
