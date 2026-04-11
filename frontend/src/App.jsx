@@ -1,28 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import { Map, Route, Zap, Link2, Shield, Satellite } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Map, Route, Zap, Shield, Sparkles } from 'lucide-react';
 import GraphMap from './components/GraphMap';
 import BlockchainPanel from './components/BlockchainPanel';
 import * as api from './api';
 
+const MIN_SIDEBAR = 260;
+const MAX_SIDEBAR = 560;
+const DEFAULT_SIDEBAR = 360;
+
+function readStoredWidth() {
+  try {
+    const v = parseInt(localStorage.getItem('sidebarW'), 10);
+    return Number.isFinite(v) ? v : DEFAULT_SIDEBAR;
+  } catch {
+    return DEFAULT_SIDEBAR;
+  }
+}
+
+function clamp(w) {
+  const vwMax = Math.min(MAX_SIDEBAR, window.innerWidth - 340);
+  return Math.max(MIN_SIDEBAR, Math.min(vwMax, w));
+}
+
 function App() {
-  // ── state ──
   const [graphData, setGraphData] = useState(null);
   const [pathData, setPathData] = useState(null);
   const [blocks, setBlocks] = useState([]);
   const [mode, setMode] = useState('city');
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
 
-  // pathfinding form state
   const [fromNode, setFromNode] = useState('');
   const [toNode, setToNode] = useState('');
   const [algo, setAlgo] = useState('dijkstra');
 
-  // road edit form state
   const [editFrom, setEditFrom] = useState('');
   const [editTo, setEditTo] = useState('');
   const [editWeight, setEditWeight] = useState('');
 
-  // ── load initial data ──
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredWidth);
+  const dragging = useRef(null);
+
+  const persist = useCallback((w) => {
+    try { localStorage.setItem('sidebarW', String(w)); } catch {}
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => setSidebarWidth((w) => clamp(w));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragging.current) return;
+      const { x0, w0 } = dragging.current;
+      setSidebarWidth(clamp(w0 + e.clientX - x0));
+    };
+    const onUp = () => {
+      if (!dragging.current) return;
+      dragging.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setSidebarWidth((w) => { persist(w); return w; });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [persist]);
+
+  const startDrag = (e) => {
+    e.preventDefault();
+    dragging.current = { x0: e.clientX, w0: sidebarWidth };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
   useEffect(() => {
     async function loadAll() {
       try {
@@ -42,280 +98,331 @@ function App() {
     loadAll();
   }, []);
 
-  // ── refresh data helper ──
   async function refreshData() {
-    const [graphRes, chainRes] = await Promise.all([
-      api.getGraph(),
-      api.getBlockchain(),
-    ]);
+    const [graphRes, chainRes] = await Promise.all([api.getGraph(), api.getBlockchain()]);
     setGraphData(graphRes);
     setBlocks(chainRes);
   }
 
-  // placeholder for event handlers (Day 13 will fill these in)
-    const handleFindPath = async () => {
+  const handleFindPath = async () => {
     if (!fromNode || !toNode) return;
+    setBusy(true);
     try {
       const result = await api.findPath(fromNode, toNode, algo);
       setPathData(result);
     } catch (err) {
       console.error('Path error:', err);
+    } finally {
+      setBusy(false);
     }
   };
-  
+
   const handleSimStep = async () => {
+    setBusy(true);
     try {
       await api.simStep();
       await refreshData();
-      setPathData(null); // clear old path since graph changed
+      setPathData(null);
     } catch (err) {
       console.error('Sim step error:', err);
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleUpdateRoad = async () => {
     if (!editFrom || !editTo || !editWeight) return;
+    setBusy(true);
     try {
       await api.updateRoad(editFrom, editTo, parseFloat(editWeight));
       await refreshData();
       setPathData(null);
     } catch (err) {
       console.error('Update road error:', err);
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleCloseRoad = async () => {
     if (!editFrom || !editTo) return;
+    setBusy(true);
     try {
       await api.closeRoad(editFrom, editTo);
       await refreshData();
       setPathData(null);
     } catch (err) {
       console.error('Close road error:', err);
+    } finally {
+      setBusy(false);
     }
   };
-  
+
   const handleModeSwitch = async () => {
+    setBusy(true);
     try {
       const newMode = mode === 'city' ? 'satellite' : 'city';
       await api.setMode(newMode);
       setMode(newMode);
       setPathData(null);
-      // reload graph for the new mode
       const graphRes = await api.getGraph();
       setGraphData(graphRes);
       const chainRes = await api.getBlockchain();
       setBlocks(chainRes);
     } catch (err) {
       console.error('Mode switch error:', err);
+    } finally {
+      setBusy(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center text-gray-400">
-        Loading...
+      <div className="flex h-full items-center justify-center bg-[#050508]">
+        <div className="panel-dark max-w-sm px-8 py-7 text-center">
+          <div className="mx-auto mb-4 h-9 w-9 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+          <p className="font-semibold text-zinc-100">Loading graph &amp; log…</p>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-200">
+            Start the C++ server on <span className="font-mono font-semibold text-white">8080</span>, then refresh.
+          </p>
+        </div>
       </div>
     );
   }
 
-  // get node names for dropdowns
-  const nodeNames = graphData?.nodes?.map(n => n.name) || [];
+  const nodeNames = graphData?.nodes?.map((n) => n.name) || [];
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-gray-100 flex flex-col">
-      {/* header */}
-      <header className="glass-panel px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Map size={22} className="text-cyan-400" />
-          <h1 className="text-lg font-semibold tracking-tight">
-            Dynamic Graph Simulation
-          </h1>
+    <div className="flex h-full min-h-0 flex-col bg-[#050508] text-zinc-100">
+      {/* ── Header ── */}
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/15 bg-[#0c0c12] px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-cyan-600 shadow-lg shadow-sky-900/40">
+            <Map size={20} className="text-white" strokeWidth={2.2} />
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-bold tracking-tight text-white">
+              Dynamic routing
+            </h1>
+            <p className="truncate text-xs font-medium leading-snug text-zinc-200 sm:text-sm">
+              Pathfind · simulate · log — map on the right updates live
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className={mode === 'city' ? 'text-cyan-400' : 'text-gray-500'}>City</span>
-          <button
-            onClick={handleModeSwitch}
-            className="w-12 h-6 rounded-full bg-gray-700 relative transition-colors"
+
+        <div className="flex shrink-0 items-center gap-3">
+          <div
+            className="flex items-center gap-2 rounded-full border border-white/20 bg-zinc-900 px-2.5 py-1.5"
+            title="City: Delhi map. Satellite: orbital links."
           >
-            <div className={`w-5 h-5 rounded-full bg-cyan-400 absolute top-0.5 transition-all ${
-              mode === 'satellite' ? 'left-6' : 'left-0.5'
-            }`} />
-          </button>
-          <span className={mode === 'satellite' ? 'text-cyan-400' : 'text-gray-500'}>Satellite</span>
+            <span className={`text-sm font-bold ${mode === 'city' ? 'text-sky-300' : 'text-zinc-300'}`}>
+              City
+            </span>
+            <button
+              type="button"
+              onClick={handleModeSwitch}
+              disabled={busy}
+              className="relative h-6 w-11 rounded-full bg-zinc-700 transition-colors hover:bg-zinc-600 disabled:opacity-50"
+              aria-label={`Switch to ${mode === 'city' ? 'satellite' : 'city'}`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-zinc-200 shadow transition-all ${
+                  mode === 'satellite' ? 'left-5' : 'left-0.5'
+                }`}
+              />
+            </button>
+            <span className={`text-sm font-bold ${mode === 'satellite' ? 'text-sky-300' : 'text-zinc-300'}`}>
+              Satellite
+            </span>
+          </div>
+          {busy && (
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-amber-200">
+              <Sparkles size={14} className="animate-pulse" />
+              Busy
+            </span>
+          )}
         </div>
       </header>
 
-      {/* main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* sidebar */}
-        <aside className="w-80 glass-panel m-2 rounded-lg p-4 overflow-y-auto space-y-6">
-          {/* pathfinding section — Day 13 will add the form here */}
-          <section>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
-              <Route size={16} className="text-cyan-400" />
-              Find Path
+      {/* ── Body: sidebar | handle | map ── */}
+      <div className="flex min-h-0 flex-1 flex-row p-3">
+        {/* Sidebar */}
+        <aside
+          className="flex h-full shrink-0 flex-col gap-2.5 overflow-y-auto overflow-x-hidden pr-1"
+          style={{ width: sidebarWidth }}
+        >
+          {/* ── Route panel ── */}
+          <section className="panel-dark p-3.5">
+            <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
+              <Route size={16} className="text-sky-400" />
+              Route
             </h2>
-            <p className="text-xs text-gray-500">Controls coming Day 13...</p>
-          </section>
-
-                    {/* pathfinding section */}
-          <section>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
-              <Route size={16} className="text-cyan-400" />
-              Find Path
-            </h2>
-            <div className="space-y-2">
-              <select
-                value={fromNode}
-                onChange={(e) => setFromNode(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm"
-              >
-                <option value="">From...</option>
-                {nodeNames.map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-
-              <select
-                value={toNode}
-                onChange={(e) => setToNode(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm"
-              >
-                <option value="">To...</option>
-                {nodeNames.map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setAlgo('dijkstra')}
-                  className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
-                    algo === 'dijkstra'
-                      ? 'bg-cyan-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }`}
-                >
-                  Dijkstra
-                </button>
-                <button
-                  onClick={() => setAlgo('astar')}
-                  className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
-                    algo === 'astar'
-                      ? 'bg-cyan-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }`}
-                >
-                  A*
-                </button>
+            <p className="mb-3 text-sm font-medium leading-snug text-zinc-200">
+              Shortest path shows in <span className="font-bold text-cyan-300">bright cyan</span> on the map →
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-zinc-200">From</label>
+                <select value={fromNode} onChange={(e) => setFromNode(e.target.value)} className="input-dark">
+                  <option value="">Select…</option>
+                  {nodeNames.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
               </div>
-
-              <button
-                onClick={handleFindPath}
-                className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-sm font-medium transition-colors"
-              >
-                Find Shortest Path
-              </button>
-
-              {/* path result display */}
-              {pathData && pathData.found && (
-                <div className="glass-panel rounded p-2 mt-2 text-xs space-y-1">
-                  <div className="text-cyan-300 font-medium">
-                    Cost: {pathData.totalCost.toFixed(2)} | Explored: {pathData.nodesExplored} nodes
-                  </div>
-                  <div className="text-gray-400">
-                    {pathData.path.map(s => s.name).join(' → ')}
-                  </div>
-                </div>
-              )}
-              {pathData && !pathData.found && (
-                <div className="text-red-400 text-xs mt-1">No path found!</div>
-              )}
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-zinc-200">To</label>
+                <select value={toNode} onChange={(e) => setToNode(e.target.value)} className="input-dark">
+                  <option value="">Select…</option>
+                  {nodeNames.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+            <div className="mt-2 flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAlgo('dijkstra')}
+                className={`btn-pill flex-1 ${algo === 'dijkstra' ? 'btn-pill-active' : ''}`}
+              >
+                Dijkstra
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlgo('astar')}
+                className={`btn-pill flex-1 ${algo === 'astar' ? 'btn-pill-active' : ''}`}
+              >
+                A*
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleFindPath}
+              disabled={!fromNode || !toNode || busy}
+              className="btn-accent mt-2 w-full"
+            >
+              Compute path
+            </button>
+            {pathData?.found && (
+              <div className="panel-dark-tight mt-3 space-y-1.5 p-3 text-sm">
+                <p className="font-bold text-emerald-300">Path found</p>
+                <p className="font-medium text-zinc-100">
+                  Cost <span className="font-mono font-bold text-cyan-200">{pathData.totalCost.toFixed(2)}</span>
+                  <span className="text-zinc-400"> · </span>
+                  Nodes <span className="font-bold text-white">{pathData.nodesExplored}</span>
+                </p>
+                <p className="leading-snug text-zinc-200">{pathData.path.map((s) => s.name).join(' → ')}</p>
+              </div>
+            )}
+            {pathData && !pathData.found && (
+              <p className="mt-3 rounded-md border border-red-400/50 bg-red-950/70 px-3 py-2 text-sm font-semibold text-red-100">
+                No path — try other places or check for a closed road.
+              </p>
+            )}
           </section>
 
-          {/* blockchain section */}
-          <section>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
-              <Shield size={16} className="text-emerald-400" />
-              Blockchain Log
-            </h2>
-            <BlockchainPanel blocks={blocks} />
-          </section>
-        </aside>
-
-                  {/* simulation section */}
-          <section>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
+          {/* ── Simulation panel ── */}
+          <section className="panel-dark p-3.5">
+            <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
               <Zap size={16} className="text-amber-400" />
               Simulation
             </h2>
-            <div className="space-y-3">
+            <p className="mb-3 text-sm font-medium leading-snug text-zinc-200">
+              {mode === 'city'
+                ? 'Each step: random traffic or a road closure. Map and log update together.'
+                : 'Each step: satellites move; links can appear or disappear on the map.'}
+            </p>
+            <button
+              type="button"
+              onClick={handleSimStep}
+              disabled={busy}
+              className="w-full rounded-lg border border-amber-300/40 bg-gradient-to-b from-amber-500 to-amber-700 py-2.5 text-sm font-bold text-white shadow-lg shadow-amber-950/60 hover:brightness-110 disabled:opacity-50"
+            >
+              Run simulation step
+            </button>
+            <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-wide text-zinc-200">Edit road</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              <select value={editFrom} onChange={(e) => setEditFrom(e.target.value)} className="input-dark">
+                <option value="">From</option>
+                {nodeNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              <select value={editTo} onChange={(e) => setEditTo(e.target.value)} className="input-dark">
+                <option value="">To</option>
+                {nodeNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="mt-1.5 flex gap-1.5">
+              <input
+                type="number"
+                placeholder="Weight"
+                value={editWeight}
+                onChange={(e) => setEditWeight(e.target.value)}
+                className="input-dark min-w-0 flex-1"
+                min="0.1"
+                step="0.1"
+              />
               <button
-                onClick={handleSimStep}
-                className="w-full py-2 bg-amber-600 hover:bg-amber-500 rounded text-sm font-medium transition-colors"
+                type="button"
+                onClick={handleUpdateRoad}
+                disabled={!editFrom || !editTo || !editWeight || busy}
+                className="shrink-0 rounded-lg border border-violet-300/40 bg-violet-600 px-3 py-2 text-sm font-bold text-white hover:bg-violet-500 disabled:opacity-45"
               >
-                Run Simulation Step
-              </button>
-
-              {/* road update form */}
-              <div className="space-y-1">
-                <label className="text-xs text-gray-500">Update Road Weight</label>
-                <div className="flex gap-1">
-                  <select
-                    value={editFrom}
-                    onChange={(e) => setEditFrom(e.target.value)}
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-xs"
-                  >
-                    <option value="">From</option>
-                    {nodeNames.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={editTo}
-                    onChange={(e) => setEditTo(e.target.value)}
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-xs"
-                  >
-                    <option value="">To</option>
-                    {nodeNames.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-1">
-                  <input
-                    type="number"
-                    placeholder="Weight"
-                    value={editWeight}
-                    onChange={(e) => setEditWeight(e.target.value)}
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs"
-                    min="0.1"
-                    step="0.1"
-                  />
-                  <button
-                    onClick={handleUpdateRoad}
-                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-xs font-medium transition-colors"
-                  >
-                    Update
-                  </button>
-                </div>
-              </div>
-
-              {/* road close */}
-              <button
-                onClick={handleCloseRoad}
-                disabled={!editFrom || !editTo}
-                className="w-full py-1.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-700 disabled:text-gray-500 rounded text-xs font-medium transition-colors"
-              >
-                Close Road ({editFrom || '?'} → {editTo || '?'})
+                Set
               </button>
             </div>
+            <button
+              type="button"
+              onClick={handleCloseRoad}
+              disabled={!editFrom || !editTo || busy}
+              className="mt-2 w-full rounded-lg border border-red-400/45 bg-red-950/80 py-2 text-sm font-bold text-red-100 hover:bg-red-900/70 disabled:opacity-45"
+            >
+              Remove road
+            </button>
           </section>
-        
-        {/* map area */}
-        <main className="flex-1 m-2 ml-0 rounded-lg overflow-hidden">
+
+          {/* ── Event log panel ── */}
+          <section className="panel-dark flex min-h-0 flex-1 flex-col p-3.5">
+            <h2 className="mb-1 flex shrink-0 items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
+              <Shield size={16} className="text-emerald-400" />
+              Event log
+            </h2>
+            <p className="mb-2 shrink-0 text-sm font-medium leading-snug text-zinc-200">
+              Tap a row to expand. New entries appear when you simulate or edit roads.
+            </p>
+            <div className="min-h-[120px] flex-1 overflow-hidden">
+              <BlockchainPanel blocks={blocks} />
+            </div>
+          </section>
+        </aside>
+
+        {/* ── Drag handle ── */}
+        <div
+          className="drag-handle"
+          onMouseDown={startDrag}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Drag to resize left panel"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            e.preventDefault();
+            const step = e.shiftKey ? 30 : 12;
+            const dir = e.key === 'ArrowRight' ? 1 : -1;
+            setSidebarWidth((w) => {
+              const next = clamp(w + dir * step);
+              persist(next);
+              return next;
+            });
+          }}
+        />
+
+        {/* ── Map ── */}
+        <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
           <GraphMap graphData={graphData} pathData={pathData} mode={mode} />
         </main>
       </div>

@@ -1,11 +1,23 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Shield, ShieldCheck } from 'lucide-react';
 
+const typeLabels = {
+  CONGESTION: 'Traffic heavier',
+  ROAD_CLOSED: 'Road closed',
+  ROAD_UPDATE: 'Road updated',
+  SAT_LINK_UP: 'Satellite link added',
+  SAT_LINK_DOWN: 'Satellite link lost',
+};
+
 function BlockchainPanel({ blocks }) {
   const [expandedBlock, setExpandedBlock] = useState(null);
 
   if (!blocks || blocks.length === 0) {
-    return <p className="text-gray-500 text-sm">No blockchain data.</p>;
+    return (
+      <p className="rounded-lg border border-dashed border-white/25 bg-black/30 px-3 py-4 text-center text-sm font-medium leading-relaxed text-zinc-200">
+        No events yet. Run a simulation step or edit a road — entries show up here.
+      </p>
+    );
   }
 
   const toggleBlock = (index) => {
@@ -13,77 +25,87 @@ function BlockchainPanel({ blocks }) {
   };
 
   return (
-    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+    <div className="h-full max-h-full space-y-2 overflow-y-auto overflow-x-hidden pr-0.5">
       {blocks.map((block) => {
         const isExpanded = expandedBlock === block.index;
         const isGenesis = block.index === 0;
         const eventData = typeof block.data === 'object' ? block.data : null;
+        const friendlyType = eventData?.type ? typeLabels[eventData.type] || eventData.type : null;
 
         return (
           <div
             key={block.index}
-            className="glass-panel rounded-lg overflow-hidden"
+            className="overflow-hidden rounded-lg border border-white/15 bg-zinc-900/90 shadow-md"
           >
-            {/* block header */}
             <button
+              type="button"
               onClick={() => toggleBlock(block.index)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/5 transition-colors"
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/10"
             >
               {isExpanded ? (
-                <ChevronDown size={14} className="text-gray-400" />
+                <ChevronDown size={16} className="shrink-0 text-zinc-300" />
               ) : (
-                <ChevronRight size={14} className="text-gray-400" />
+                <ChevronRight size={16} className="shrink-0 text-zinc-300" />
               )}
 
               {isGenesis ? (
-                <Shield size={14} className="text-yellow-400" />
+                <Shield size={16} className="shrink-0 text-amber-400" />
               ) : (
-                <ShieldCheck size={14} className="text-emerald-400" />
+                <ShieldCheck size={16} className="shrink-0 text-emerald-400" />
               )}
 
-              <span className="text-sm font-medium text-gray-200">
-                Block #{block.index}
-              </span>
+              <span className="text-sm font-bold text-white">#{block.index}</span>
 
-              {eventData && (
-                <span className="ml-auto text-xs text-gray-500">
-                  {eventData.type}
+              {isGenesis && (
+                <span className="ml-auto rounded-md bg-amber-500/25 px-2 py-0.5 text-xs font-bold text-amber-100">
+                  Genesis
                 </span>
               )}
 
-              {isGenesis && (
-                <span className="ml-auto text-xs text-yellow-400/70">
-                  Genesis
+              {!isGenesis && friendlyType && (
+                <span className="ml-auto truncate text-xs font-semibold text-zinc-200" title={eventData.type}>
+                  {friendlyType}
                 </span>
               )}
             </button>
 
-            {/* expanded details */}
             {isExpanded && (
-              <div className="px-3 pb-3 text-xs space-y-1 border-t border-white/5 pt-2">
-                <div className="font-mono text-gray-400">
-                  <span className="text-gray-600">Hash: </span>
+              <div className="space-y-2 border-t border-white/12 px-3 pb-3 pt-2 text-xs">
+                <div className="break-all font-mono text-sm leading-relaxed text-zinc-200">
+                  <span className="font-sans text-xs font-bold uppercase tracking-wide text-zinc-400">Hash </span>
                   {block.hash}
                 </div>
-                <div className="font-mono text-gray-400">
-                  <span className="text-gray-600">Prev: </span>
+                <div className="break-all font-mono text-sm leading-relaxed text-zinc-200">
+                  <span className="font-sans text-xs font-bold uppercase tracking-wide text-zinc-400">Prev </span>
                   {block.previousHash}
                 </div>
 
                 {eventData && (
-                  <div className="mt-2 p-2 rounded bg-black/30 space-y-1">
-                    <div><span className="text-gray-500">Type:</span> <span className="text-cyan-300">{eventData.type}</span></div>
-                    <div><span className="text-gray-500">From:</span> {eventData.from}</div>
-                    <div><span className="text-gray-500">To:</span> {eventData.to}</div>
+                  <div className="space-y-1.5 rounded-md border border-white/12 bg-black/40 p-3 text-sm">
+                    <div className="text-zinc-100">
+                      <span className="font-semibold text-zinc-400">Event </span>
+                      <span className="font-bold text-cyan-300">{friendlyType || eventData.type}</span>
+                    </div>
+                    <div className="text-zinc-100">
+                      <span className="font-semibold text-zinc-400">Route </span>
+                      <span className="font-bold text-white">{eventData.from}</span>
+                      <span className="text-zinc-500"> → </span>
+                      <span className="font-bold text-white">{eventData.to}</span>
+                    </div>
                     {eventData.oldWeight > 0 && (
-                      <div><span className="text-gray-500">Weight:</span> {eventData.oldWeight} → {eventData.newWeight}</div>
+                      <div className="text-zinc-100">
+                        <span className="font-semibold text-zinc-400">Weight </span>
+                        <span className="font-mono font-bold text-white">
+                          {eventData.oldWeight} → {eventData.newWeight}
+                        </span>
+                      </div>
                     )}
                   </div>
                 )}
 
                 {isGenesis && (
-                  <div className="mt-2 p-2 rounded bg-black/30 text-yellow-400/70">
-                    Genesis Block — chain origin
+                  <div className="rounded-md border border-amber-400/30 bg-amber-950/60 px-3 py-2 text-sm font-medium text-amber-100">
+                    First block — anchors the chain so changes can be verified.
                   </div>
                 )}
               </div>

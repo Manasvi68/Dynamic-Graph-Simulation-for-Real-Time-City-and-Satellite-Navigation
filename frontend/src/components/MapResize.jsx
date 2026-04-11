@@ -1,20 +1,25 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 
 function MapResize() {
   const map = useMap();
+  const containerRef = useRef(map.getContainer());
 
   useEffect(() => {
-    const handleResize = () => {
-      setTimeout(() => map.invalidateSize(), 100);
-    };
-    window.addEventListener('resize', handleResize);
-    // also invalidate on mount (fixes initial render issues)
+    const el = containerRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+    ro.observe(el);
+
     setTimeout(() => map.invalidateSize(), 200);
-    return () => window.removeEventListener('resize', handleResize);
+
+    return () => ro.disconnect();
   }, [map]);
 
-  return null; // this component renders nothing, it just runs the effect
+  return null;
 }
 
 export default MapResize;
