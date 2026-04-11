@@ -6,9 +6,11 @@
 #include "satellite_world.h"
 #include "json.hpp"
 
-// Winsock headers for Windows networking
-#include <winsock2.h>
-#include <ws2tcpip.h>
+// POSIX socket headers for Linux networking
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 #include <iostream>
 #include <fstream>
@@ -41,10 +43,10 @@ struct HttpRequest {
 };
 
 HttpRequest parseRequest(const string& raw);
-void sendResponse(SOCKET client, int statusCode, const string& contentType, const string& body);
-void sendJson(SOCKET client, const json& j);
-void serveStaticFile(SOCKET client, const string& urlPath);
-void handleApiRequest(SOCKET client, const HttpRequest& req);
+void sendResponse(int client, int statusCode, const string& contentType, const string& body);
+void sendJson(int client, const json& j);
+void serveStaticFile(int client, const string& urlPath);
+void handleApiRequest(int client, const HttpRequest& req);
 
 // ── parse raw HTTP request into our struct ──
 HttpRequest parseRequest(const string& raw) {
@@ -117,7 +119,7 @@ static string urlDecode(const string& str) {
 }
 
 // ── send an HTTP response ──
-void sendResponse(SOCKET client, int statusCode, const string& contentType, const string& body) {
+void sendResponse(int client, int statusCode, const string& contentType, const string& body) {
     string statusText = "OK";
     if (statusCode == 404) statusText = "Not Found";
     if (statusCode == 400) statusText = "Bad Request";
@@ -139,7 +141,7 @@ void sendResponse(SOCKET client, int statusCode, const string& contentType, cons
 }
 
 // shortcut to send a JSON response
-void sendJson(SOCKET client, const json& j) {
+void sendJson(int client, const json& j) {
     sendResponse(client, 200, "application/json", j.dump(2));
 }
 
@@ -157,7 +159,7 @@ static string guessContentType(const string& path) {
 }
 
 // ── serve a static file from disk ──
-void serveStaticFile(SOCKET client, const string& urlPath) {
+void serveStaticFile(int client, const string& urlPath) {
     // figure out which directory to serve from
     string staticDir = STATIC_DIR_REACT;
 
@@ -200,7 +202,7 @@ void serveStaticFile(SOCKET client, const string& urlPath) {
 }
 
 // ── handle all /api/ requests ──
-void handleApiRequest(SOCKET client, const HttpRequest& req) {
+void handleApiRequest(int client, const HttpRequest& req) {
 
     // ── GET /api/graph ──
     if (req.method == "GET" && req.path == "/api/graph") {
@@ -597,26 +599,19 @@ int main() {
     }
 
     // create traffic simulator
+    // create traffic simulator
     trafficSim = new TrafficSimulator(&cityGraph, &blockchain);
 
-    // ── start Winsock ──
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        cout << "WSAStartup failed!" << endl;
-        return 1;
-    }
-
-    // create socket
-    SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (serverSocket == INVALID_SOCKET) {
+    // ── create socket ──
+    int serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (serverSocket == -1) {
         cout << "Socket creation failed!" << endl;
-        WSACleanup();
         return 1;
     }
 
     // allow port reuse (helpful when restarting quickly)
     int opt = 1;
-    setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+    setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     // bind to port
     sockaddr_in serverAddr;
@@ -624,19 +619,17 @@ int main() {
     serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(PORT);
 
-    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
         cout << "Bind failed! Port " << PORT << " might already be in use." << endl;
-        cout << "Try: netstat -ano | findstr :" << PORT << endl;
-        closesocket(serverSocket);
-        WSACleanup();
+        cout << "Try: lsof -i :" << PORT << endl;
+        close(serverSocket);
         return 1;
     }
 
     // start listening
-    if (listen(serverSocket, 10) == SOCKET_ERROR) {
+    if (listen(serverSocket, 10) == -1) {
         cout << "Listen failed!" << endl;
-        closesocket(serverSocket);
-        WSACleanup();
+        close(serverSocket);
         return 1;
     }
 
@@ -645,8 +638,8 @@ int main() {
 
     // ── main accept loop ──
     while (true) {
-        SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
-        if (clientSocket == INVALID_SOCKET) continue;
+        int clientSocket = accept(serverSocket, nullptr, nullptr);
+        if (clientSocket == -1) continue;
 
         // read the request (up to 8KB)
         char buffer[8192];
@@ -664,13 +657,12 @@ int main() {
             }
         }
 
-        closesocket(clientSocket);
+        close(clientSocket);
     }
 
     // cleanup (never actually reached, but good practice)
     delete trafficSim;
     delete satWorld;
-    closesocket(serverSocket);
-    WSACleanup();
+    close(serverSocket);
     return 0;
 }

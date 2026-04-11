@@ -201,52 +201,52 @@ const vector<Block>& Blockchain::getChain() const {
 // compile: g++ -std=c++17 -o blockchain_test blockchain.cpp
 // run: ./blockchain_test
 
-int blockchain_main() {
-    cout << "--- Testing Blockchain ---\n" << endl;
+// int blockchain_main() {
+//     cout << "--- Testing Blockchain ---\n" << endl;
 
-    Blockchain chain;
+//     Blockchain chain;
 
-    // add some events
-    NetworkEvent e1;
-    e1.type = "CONGESTION";
-    e1.fromNode = "Home";
-    e1.toNode = "Market";
-    e1.oldWeight = 5.0;
-    e1.newWeight = 12.0;
-    e1.timestamp = "2025-03-24 10:00";
-    chain.addBlockFromEvent(e1);
+//     // add some events
+//     NetworkEvent e1;
+//     e1.type = "CONGESTION";
+//     e1.fromNode = "Home";
+//     e1.toNode = "Market";
+//     e1.oldWeight = 5.0;
+//     e1.newWeight = 12.0;
+//     e1.timestamp = "2025-03-24 10:00";
+//     chain.addBlockFromEvent(e1);
 
-    NetworkEvent e2;
-    e2.type = "ROAD_CLOSED";
-    e2.fromNode = "Hospital";
-    e2.toNode = "Airport";
-    e2.oldWeight = 4.0;
-    e2.newWeight = 0.0;
-    e2.timestamp = "2025-03-24 10:05";
-    chain.addBlockFromEvent(e2);
+//     NetworkEvent e2;
+//     e2.type = "ROAD_CLOSED";
+//     e2.fromNode = "Hospital";
+//     e2.toNode = "Airport";
+//     e2.oldWeight = 4.0;
+//     e2.newWeight = 0.0;
+//     e2.timestamp = "2025-03-24 10:05";
+//     chain.addBlockFromEvent(e2);
 
-    // print the chain
-    const auto& blocks = chain.getChain();
-    for (int i = 0; i < blocks.size(); i++) {
-        cout << "Block #" << blocks[i].index << endl;
-        cout << "  Data: " << blocks[i].data << endl;
-        cout << "  Hash: " << blocks[i].hash << endl;
-        cout << "  Prev: " << blocks[i].previousHash << endl;
-        cout << endl;
-    }
+//     // print the chain
+//     const auto& blocks = chain.getChain();
+//     for (int i = 0; i < blocks.size(); i++) {
+//         cout << "Block #" << blocks[i].index << endl;
+//         cout << "  Data: " << blocks[i].data << endl;
+//         cout << "  Hash: " << blocks[i].hash << endl;
+//         cout << "  Prev: " << blocks[i].previousHash << endl;
+//         cout << endl;
+//     }
 
-    // validate
-    cout << "Chain valid? " << (chain.isChainValid() ? "YES" : "NO") << endl;
+//     // validate
+//     cout << "Chain valid? " << (chain.isChainValid() ? "YES" : "NO") << endl;
 
-    // save and reload
-    chain.saveToJson("test_blockchain.json");
-    cout << "\nSaved to test_blockchain.json" << endl;
+//     // save and reload
+//     chain.saveToJson("test_blockchain.json");
+//     cout << "\nSaved to test_blockchain.json" << endl;
 
-    Blockchain loaded;
-    loaded.loadFromJson("test_blockchain.json");
-    cout << "Loaded chain has " << loaded.getChain().size() << " blocks" << endl;
-    cout << "Loaded chain valid? " << (loaded.isChainValid() ? "YES" : "NO") << endl;
+//     Blockchain loaded;
+//     loaded.loadFromJson("test_blockchain.json");
+//     cout << "Loaded chain has " << loaded.getChain().size() << " blocks" << endl;
+//     cout << "Loaded chain valid? " << (loaded.isChainValid() ? "YES" : "NO") << endl;
 
-    cout << "\n--- Blockchain tests done! ---" << endl;
-    return 0;
-}
+//     cout << "\n--- Blockchain tests done! ---" << endl;
+//     return 0;
+// }

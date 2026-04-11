@@ -220,41 +220,41 @@ void SatelliteWorld::loadFromFiles(string orbitFile) {
 // compile: g++ -std=c++17 -o sat_test graph.cpp blockchain.cpp satellite_world.cpp
 // run: ./sat_test
 
-int main() {
-    cout << "--- Testing Satellite World ---\n" << endl;
+// int main() {
+//     cout << "--- Testing Satellite World ---\n" << endl;
 
-    Blockchain chain;
-    SatelliteWorld world(&chain, 15.0);  // satellites link if within 15 units
+//     Blockchain chain;
+//     SatelliteWorld world(&chain, 15.0);  // satellites link if within 15 units
 
-    // add 5 satellites with different orbits
-    world.addBody("Sat-Alpha",   0,  0, 10, 0.0, 0.2);
-    world.addBody("Sat-Beta",    0,  0, 12, 1.0, 0.15);
-    world.addBody("Sat-Gamma",   5,  5,  8, 2.0, 0.25);
-    world.addBody("Sat-Delta",  -5,  0, 15, 0.5, 0.1);
-    world.addBody("Sat-Epsilon", 0, -5,  9, 3.0, 0.3);
+//     // add 5 satellites with different orbits
+//     world.addBody("Sat-Alpha",   0,  0, 10, 0.0, 0.2);
+//     world.addBody("Sat-Beta",    0,  0, 12, 1.0, 0.15);
+//     world.addBody("Sat-Gamma",   5,  5,  8, 2.0, 0.25);
+//     world.addBody("Sat-Delta",  -5,  0, 15, 0.5, 0.1);
+//     world.addBody("Sat-Epsilon", 0, -5,  9, 3.0, 0.3);
 
-    cout << "Initial topology:" << endl;
-    world.getGraph().printGraph();
+//     cout << "Initial topology:" << endl;
+//     world.getGraph().printGraph();
 
-    // run 5 orbit steps
-    for (int step = 0; step < 5; step++) {
-        cout << "\n=== Orbit Step " << (step + 1) << " ===" << endl;
-        world.orbitStep();
-        world.getGraph().printGraph();
-    }
+//     // run 5 orbit steps
+//     for (int step = 0; step < 5; step++) {
+//         cout << "\n=== Orbit Step " << (step + 1) << " ===" << endl;
+//         world.orbitStep();
+//         world.getGraph().printGraph();
+//     }
 
-    cout << "\nBlockchain has " << chain.getChain().size() << " blocks" << endl;
-    cout << "Chain valid? " << (chain.isChainValid() ? "YES" : "NO") << endl;
+//     cout << "\nBlockchain has " << chain.getChain().size() << " blocks" << endl;
+//     cout << "Chain valid? " << (chain.isChainValid() ? "YES" : "NO") << endl;
 
-    // save and reload
-    world.saveToFiles("test_orbit.json");
-    cout << "\nSaved orbit state." << endl;
+//     // save and reload
+//     world.saveToFiles("test_orbit.json");
+//     cout << "\nSaved orbit state." << endl;
 
-    SatelliteWorld loaded(&chain, 15.0);
-    loaded.loadFromFiles("test_orbit.json");
-    cout << "Loaded orbit state:" << endl;
-    loaded.getGraph().printGraph();
+//     SatelliteWorld loaded(&chain, 15.0);
+//     loaded.loadFromFiles("test_orbit.json");
+//     cout << "Loaded orbit state:" << endl;
+//     loaded.getGraph().printGraph();
 
-    cout << "\n--- Satellite world tests done! ---" << endl;
-    return 0;
-}
+//     cout << "\n--- Satellite world tests done! ---" << endl;
+//     return 0;
+// }

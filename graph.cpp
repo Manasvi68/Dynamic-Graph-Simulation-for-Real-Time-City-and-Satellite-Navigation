@@ -303,64 +303,64 @@ const unordered_map<string, int>& CityGraph::getIdMap() const {
 // compile: g++ -std=c++17 -o graph_test graph.cpp
 // run: ./graph_test
 
-int graph_main() {
-    cout << "--- Testing CityGraph ---\n" << endl;
+// int graph_main() {
+//     cout << "--- Testing CityGraph ---\n" << endl;
 
-    CityGraph city;
+//     CityGraph city;
 
-    // add 6 intersections
-    city.addIntersection("Home");
-    city.addIntersection("Market");
-    city.addIntersection("Hospital");
-    city.addIntersection("Airport");
-    city.addIntersection("School");
-    city.addIntersection("Park");
+//     // add 6 intersections
+//     city.addIntersection("Home");
+//     city.addIntersection("Market");
+//     city.addIntersection("Hospital");
+//     city.addIntersection("Airport");
+//     city.addIntersection("School");
+//     city.addIntersection("Park");
 
-    // add some roads
-    city.addRoad("Home", "Market", 5.0);
-    city.addRoad("Home", "Hospital", 8.0);
-    city.addRoad("Market", "Airport", 7.0);
-    city.addRoad("Hospital", "Airport", 4.0);
-    city.addRoad("Airport", "School", 6.0);
-    city.addRoad("School", "Park", 3.0);
-    city.addRoad("Home", "Park", 15.0);  // long route
-    city.addRoad("Market", "School", 9.0, true);  // one-way road
+//     // add some roads
+//     city.addRoad("Home", "Market", 5.0);
+//     city.addRoad("Home", "Hospital", 8.0);
+//     city.addRoad("Market", "Airport", 7.0);
+//     city.addRoad("Hospital", "Airport", 4.0);
+//     city.addRoad("Airport", "School", 6.0);
+//     city.addRoad("School", "Park", 3.0);
+//     city.addRoad("Home", "Park", 15.0);  // long route
+//     city.addRoad("Market", "School", 9.0, true);  // one-way road
 
-    city.printGraph();
+//     city.printGraph();
 
-    // test lookups
-    cout << "Home id: " << city.getNodeId("Home") << endl;
-    cout << "Node 3 name: " << city.getNodeName(3) << endl;
-    cout << "Has 'Hospital'? " << (city.hasIntersection("Hospital") ? "yes" : "no") << endl;
-    cout << "Has 'Stadium'? " << (city.hasIntersection("Stadium") ? "yes" : "no") << endl;
-    cout << "Road Home->Market? " << (city.hasRoad("Home", "Market") ? "yes" : "no") << endl;
-    cout << "Road Park->Home? " << (city.hasRoad("Park", "Home") ? "yes" : "no") << endl;
-    cout << "Total intersections: " << city.getNodeCount() << endl;
+//     // test lookups
+//     cout << "Home id: " << city.getNodeId("Home") << endl;
+//     cout << "Node 3 name: " << city.getNodeName(3) << endl;
+//     cout << "Has 'Hospital'? " << (city.hasIntersection("Hospital") ? "yes" : "no") << endl;
+//     cout << "Has 'Stadium'? " << (city.hasIntersection("Stadium") ? "yes" : "no") << endl;
+//     cout << "Road Home->Market? " << (city.hasRoad("Home", "Market") ? "yes" : "no") << endl;
+//     cout << "Road Park->Home? " << (city.hasRoad("Park", "Home") ? "yes" : "no") << endl;
+//     cout << "Total intersections: " << city.getNodeCount() << endl;
 
-    // test update
-    cout << "\nUpdating Home->Market weight to 12.0..." << endl;
-    city.updateRoadWeight("Home", "Market", 12.0);
-    city.printGraph();
+//     // test update
+//     cout << "\nUpdating Home->Market weight to 12.0..." << endl;
+//     city.updateRoadWeight("Home", "Market", 12.0);
+//     city.printGraph();
 
-    // test remove
-    cout << "Removing road Home->Hospital..." << endl;
-    city.removeRoad("Home", "Hospital");
-    city.printGraph();
+//     // test remove
+//     cout << "Removing road Home->Hospital..." << endl;
+//     city.removeRoad("Home", "Hospital");
+//     city.printGraph();
 
-    // test save/load
-    cout << "Saving graph to test_city.json..." << endl;
-    city.saveToJson("test_city.json");
+//     // test save/load
+//     cout << "Saving graph to test_city.json..." << endl;
+//     city.saveToJson("test_city.json");
 
-    CityGraph loadedCity;
-    cout << "Loading from test_city.json..." << endl;
-    loadedCity.loadFromJson("test_city.json");
-    loadedCity.printGraph();
+//     CityGraph loadedCity;
+//     cout << "Loading from test_city.json..." << endl;
+//     loadedCity.loadFromJson("test_city.json");
+//     loadedCity.printGraph();
 
-    // test clear
-    cout << "Clearing graph..." << endl;
-    city.clear();
-    cout << "Node count after clear: " << city.getNodeCount() << endl;
+//     // test clear
+//     cout << "Clearing graph..." << endl;
+//     city.clear();
+//     cout << "Node count after clear: " << city.getNodeCount() << endl;
 
-    cout << "\n--- All graph tests passed! ---" << endl;
-    return 0;
-}
+//     cout << "\n--- All graph tests passed! ---" << endl;
+//     return 0;
+// }

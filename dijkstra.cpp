@@ -106,72 +106,72 @@ PathResult runDijkstra(const CityGraph& graph, string startName, string goalName
 // compile: g++ -std=c++17 -o dijkstra_test graph.cpp dijkstra.cpp
 // run: ./dijkstra_test
 
-int main() {
-    cout << "--- Testing Dijkstra's Algorithm ---\n" << endl;
+// int main() {
+//     cout << "--- Testing Dijkstra's Algorithm ---\n" << endl;
 
-    CityGraph city;
-    city.addIntersection("Home");
-    city.addIntersection("Market");
-    city.addIntersection("Hospital");
-    city.addIntersection("Airport");
-    city.addIntersection("School");
-    city.addIntersection("Park");
+//     CityGraph city;
+//     city.addIntersection("Home");
+//     city.addIntersection("Market");
+//     city.addIntersection("Hospital");
+//     city.addIntersection("Airport");
+//     city.addIntersection("School");
+//     city.addIntersection("Park");
 
-    city.addRoad("Home", "Market", 5.0);
-    city.addRoad("Home", "Hospital", 8.0);
-    city.addRoad("Market", "Airport", 7.0);
-    city.addRoad("Hospital", "Airport", 4.0);
-    city.addRoad("Airport", "School", 6.0);
-    city.addRoad("School", "Park", 3.0);
-    city.addRoad("Home", "Park", 15.0);
+//     city.addRoad("Home", "Market", 5.0);
+//     city.addRoad("Home", "Hospital", 8.0);
+//     city.addRoad("Market", "Airport", 7.0);
+//     city.addRoad("Hospital", "Airport", 4.0);
+//     city.addRoad("Airport", "School", 6.0);
+//     city.addRoad("School", "Park", 3.0);
+//     city.addRoad("Home", "Park", 15.0);
 
-    city.printGraph();
+//     city.printGraph();
 
-    // test 1: Home to Airport
-    cout << "=== Path: Home -> Airport ===" << endl;
-    PathResult r1 = runDijkstra(city, "Home", "Airport");
-    if (r1.found) {
-        cout << "Cost: " << r1.totalCost << endl;
-        cout << "Path: ";
-        for (int i = 0; i < r1.path.size(); i++) {
-            cout << city.getNodeName(r1.path[i]);
-            if (i < r1.path.size() - 1) cout << " -> ";
-        }
-        cout << endl;
-        cout << "Nodes explored: " << r1.nodesExplored << endl;
-    } else {
-        cout << "No path found!" << endl;
-    }
+//     // test 1: Home to Airport
+//     cout << "=== Path: Home -> Airport ===" << endl;
+//     PathResult r1 = runDijkstra(city, "Home", "Airport");
+//     if (r1.found) {
+//         cout << "Cost: " << r1.totalCost << endl;
+//         cout << "Path: ";
+//         for (int i = 0; i < r1.path.size(); i++) {
+//             cout << city.getNodeName(r1.path[i]);
+//             if (i < r1.path.size() - 1) cout << " -> ";
+//         }
+//         cout << endl;
+//         cout << "Nodes explored: " << r1.nodesExplored << endl;
+//     } else {
+//         cout << "No path found!" << endl;
+//     }
 
-    // test 2: Home to Park (should prefer Home->Airport->School->Park = 18 over Home->Park = 15)
-    cout << "\n=== Path: Home -> Park ===" << endl;
-    PathResult r2 = runDijkstra(city, "Home", "Park");
-    if (r2.found) {
-        cout << "Cost: " << r2.totalCost << endl;
-        cout << "Path: ";
-        for (int i = 0; i < r2.path.size(); i++) {
-            cout << city.getNodeName(r2.path[i]);
-            if (i < r2.path.size() - 1) cout << " -> ";
-        }
-        cout << endl;
-        cout << "Nodes explored: " << r2.nodesExplored << endl;
-    }
+//     // test 2: Home to Park (should prefer Home->Airport->School->Park = 18 over Home->Park = 15)
+//     cout << "\n=== Path: Home -> Park ===" << endl;
+//     PathResult r2 = runDijkstra(city, "Home", "Park");
+//     if (r2.found) {
+//         cout << "Cost: " << r2.totalCost << endl;
+//         cout << "Path: ";
+//         for (int i = 0; i < r2.path.size(); i++) {
+//             cout << city.getNodeName(r2.path[i]);
+//             if (i < r2.path.size() - 1) cout << " -> ";
+//         }
+//         cout << endl;
+//         cout << "Nodes explored: " << r2.nodesExplored << endl;
+//     }
 
-    // test 3: non-existent path
-    cout << "\n=== Path: Park -> Home (check bidirectional) ===" << endl;
-    PathResult r3 = runDijkstra(city, "Park", "Home");
-    if (r3.found) {
-        cout << "Cost: " << r3.totalCost << endl;
-        cout << "Path: ";
-        for (int i = 0; i < r3.path.size(); i++) {
-            cout << city.getNodeName(r3.path[i]);
-            if (i < r3.path.size() - 1) cout << " -> ";
-        }
-        cout << endl;
-    } else {
-        cout << "No path found!" << endl;
-    }
+//     // test 3: non-existent path
+//     cout << "\n=== Path: Park -> Home (check bidirectional) ===" << endl;
+//     PathResult r3 = runDijkstra(city, "Park", "Home");
+//     if (r3.found) {
+//         cout << "Cost: " << r3.totalCost << endl;
+//         cout << "Path: ";
+//         for (int i = 0; i < r3.path.size(); i++) {
+//             cout << city.getNodeName(r3.path[i]);
+//             if (i < r3.path.size() - 1) cout << " -> ";
+//         }
+//         cout << endl;
+//     } else {
+//         cout << "No path found!" << endl;
+//     }
 
-    cout << "\n--- Dijkstra tests done! ---" << endl;
-    return 0;
-}
+//     cout << "\n--- Dijkstra tests done! ---" << endl;
+//     return 0;
+// }

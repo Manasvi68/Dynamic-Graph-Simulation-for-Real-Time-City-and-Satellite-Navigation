@@ -132,41 +132,41 @@ void TrafficSimulator::stepOnce() {
 // compile: g++ -std=c++17 -o sim_test graph.cpp blockchain.cpp traffic_sim.cpp
 // run: ./sim_test
 
-int main() {
-    cout << "--- Testing Traffic Simulator ---\n" << endl;
+// int main() {
+//     cout << "--- Testing Traffic Simulator ---\n" << endl;
 
-    CityGraph city;
-    city.addIntersection("Home");
-    city.addIntersection("Market");
-    city.addIntersection("Hospital");
-    city.addIntersection("Airport");
-    city.addIntersection("School");
+//     CityGraph city;
+//     city.addIntersection("Home");
+//     city.addIntersection("Market");
+//     city.addIntersection("Hospital");
+//     city.addIntersection("Airport");
+//     city.addIntersection("School");
 
-    city.addRoad("Home", "Market", 5.0);
-    city.addRoad("Home", "Hospital", 8.0);
-    city.addRoad("Market", "Airport", 7.0);
-    city.addRoad("Hospital", "Airport", 4.0);
-    city.addRoad("Airport", "School", 6.0);
+//     city.addRoad("Home", "Market", 5.0);
+//     city.addRoad("Home", "Hospital", 8.0);
+//     city.addRoad("Market", "Airport", 7.0);
+//     city.addRoad("Hospital", "Airport", 4.0);
+//     city.addRoad("Airport", "School", 6.0);
 
-    Blockchain chain;
-    TrafficSimulator sim(&city, &chain);
+//     Blockchain chain;
+//     TrafficSimulator sim(&city, &chain);
 
-    cout << "Before simulation:" << endl;
-    city.printGraph();
+//     cout << "Before simulation:" << endl;
+//     city.printGraph();
 
-    // run 5 simulation steps
-    for (int i = 0; i < 5; i++) {
-        cout << "\n--- Step " << (i + 1) << " ---" << endl;
-        sim.stepOnce();
-    }
+//     // run 5 simulation steps
+//     for (int i = 0; i < 5; i++) {
+//         cout << "\n--- Step " << (i + 1) << " ---" << endl;
+//         sim.stepOnce();
+//     }
 
-    cout << "\nAfter simulation:" << endl;
-    city.printGraph();
+//     cout << "\nAfter simulation:" << endl;
+//     city.printGraph();
 
-    // show blockchain
-    cout << "\nBlockchain has " << chain.getChain().size() << " blocks" << endl;
-    cout << "Chain valid? " << (chain.isChainValid() ? "YES" : "NO") << endl;
+//     // show blockchain
+//     cout << "\nBlockchain has " << chain.getChain().size() << " blocks" << endl;
+//     cout << "Chain valid? " << (chain.isChainValid() ? "YES" : "NO") << endl;
 
-    cout << "\n--- Traffic sim tests done! ---" << endl;
-    return 0;
-}
+//     cout << "\n--- Traffic sim tests done! ---" << endl;
+//     return 0;
+// }
