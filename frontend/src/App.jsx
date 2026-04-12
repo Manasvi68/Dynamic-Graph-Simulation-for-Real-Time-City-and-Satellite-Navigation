@@ -37,6 +37,7 @@ function App() {
   const [editFrom, setEditFrom] = useState('');
   const [editTo, setEditTo] = useState('');
   const [editWeight, setEditWeight] = useState('');
+  const [autoSim, setAutoSim] = useState(true);
 
   const [sidebarWidth, setSidebarWidth] = useState(readStoredWidth);
   const dragging = useRef(null);
@@ -82,14 +83,15 @@ function App() {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [graphRes, chainRes, modeRes] = await Promise.all([
-          api.getGraph(),
+        const [chainRes, modeRes] = await Promise.all([
           api.getBlockchain(),
           api.getMode(),
         ]);
+        const m = modeRes.mode || 'city';
+        const graphRes = await api.getGraph(m === 'city' ? { scope: 'city' } : {});
         setGraphData(graphRes);
         setBlocks(chainRes);
-        setMode(modeRes.mode || 'city');
+        setMode(m);
       } catch (err) {
         console.error('Failed to load data:', err);
       }
@@ -98,11 +100,42 @@ function App() {
     loadAll();
   }, []);
 
-  async function refreshData() {
-    const [graphRes, chainRes] = await Promise.all([api.getGraph(), api.getBlockchain()]);
+  const refreshData = useCallback(async () => {
+    const graphOpts = mode === 'city' ? { scope: 'city' } : {};
+    const [graphRes, chainRes] = await Promise.all([api.getGraph(graphOpts), api.getBlockchain()]);
     setGraphData(graphRes);
     setBlocks(chainRes);
-  }
+  }, [mode]);
+
+  useEffect(() => {
+    if (!autoSim || mode !== 'city' || loading) return undefined;
+
+    let cancelled = false;
+    let timerId = null;
+
+    const scheduleNext = () => {
+      const delay = 1000 + Math.random() * 1000;
+      timerId = window.setTimeout(runTick, delay);
+    };
+
+    const runTick = async () => {
+      if (cancelled) return;
+      try {
+        await api.simStep();
+        if (!cancelled) await refreshData();
+      } catch (err) {
+        console.error('Auto simulation tick:', err);
+      }
+      if (!cancelled) scheduleNext();
+    };
+
+    scheduleNext();
+
+    return () => {
+      cancelled = true;
+      if (timerId !== null) window.clearTimeout(timerId);
+    };
+  }, [autoSim, mode, loading, refreshData]);
 
   const handleFindPath = async () => {
     if (!fromNode || !toNode) return;
@@ -165,7 +198,7 @@ function App() {
       await api.setMode(newMode);
       setMode(newMode);
       setPathData(null);
-      const graphRes = await api.getGraph();
+      const graphRes = await api.getGraph(newMode === 'city' ? { scope: 'city' } : {});
       setGraphData(graphRes);
       const chainRes = await api.getBlockchain();
       setBlocks(chainRes);
@@ -245,14 +278,14 @@ function App() {
       </header>
 
       {/* ── Body: sidebar | handle | map ── */}
-      <div className="flex min-h-0 flex-1 flex-row p-3">
+      <div className="flex h-full min-h-0 flex-1 flex-row overflow-hidden p-3">
         {/* Sidebar */}
         <aside
-          className="flex h-full shrink-0 flex-col gap-2.5 overflow-y-auto overflow-x-hidden pr-1"
+          className="event-log-sidebar grid h-full min-h-0 max-h-full shrink-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2.5 overflow-hidden pr-1"
           style={{ width: sidebarWidth }}
         >
           {/* ── Route panel ── */}
-          <section className="panel-dark p-3.5">
+          <section className="panel-dark shrink-0 p-3.5">
             <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
               <Route size={16} className="text-sky-400" />
               Route
@@ -323,20 +356,31 @@ function App() {
           </section>
 
           {/* ── Simulation panel ── */}
-          <section className="panel-dark p-3.5">
+          <section className="panel-dark shrink-0 p-3.5">
             <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
               <Zap size={16} className="text-amber-400" />
               Simulation
             </h2>
             <p className="mb-3 text-sm font-medium leading-snug text-zinc-200">
               {mode === 'city'
-                ? 'Each step: random traffic or a road closure. Map and log update together.'
+                ? 'Auto mode picks a random road every 1–2s and applies Normal, Traffic, Construction, Accident, or Blocked (infinite cost). You can still run a step manually or edit weights.'
                 : 'Each step: satellites move; links can appear or disappear on the map.'}
             </p>
+            {mode === 'city' && (
+              <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm font-semibold text-zinc-200">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-zinc-500 bg-zinc-800 text-amber-500 focus:ring-amber-500"
+                  checked={autoSim}
+                  onChange={(e) => setAutoSim(e.target.checked)}
+                />
+                Auto traffic simulation (1–2s)
+              </label>
+            )}
             <button
               type="button"
               onClick={handleSimStep}
-              disabled={busy}
+              disabled={busy || mode !== 'city'}
               className="w-full rounded-lg border border-amber-300/40 bg-gradient-to-b from-amber-500 to-amber-700 py-2.5 text-sm font-bold text-white shadow-lg shadow-amber-950/60 hover:brightness-110 disabled:opacity-50"
             >
               Run simulation step
@@ -385,16 +429,20 @@ function App() {
             </button>
           </section>
 
-          {/* ── Event log panel ── */}
-          <section className="panel-dark flex min-h-0 flex-1 flex-col p-3.5">
+          {/* ── Event log panel (scrolls independently; rest of sidebar stays fixed) ── */}
+          <section className="panel-dark flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3.5">
             <h2 className="mb-1 flex shrink-0 items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
               <Shield size={16} className="text-emerald-400" />
               Event log
             </h2>
             <p className="mb-2 shrink-0 text-sm font-medium leading-snug text-zinc-200">
-              Tap a row to expand. New entries appear when you simulate or edit roads.
+              Tap a row to expand. Scroll this list to see older entries.
             </p>
-            <div className="min-h-[120px] flex-1 overflow-hidden">
+            <div
+              className="event-log-scroll h-0 min-h-0 flex-1 overflow-y-scroll overflow-x-hidden rounded-lg border border-white/10 bg-black/25 py-1 pl-1 pr-1"
+              role="region"
+              aria-label="Event log entries"
+            >
               <BlockchainPanel blocks={blocks} />
             </div>
           </section>

@@ -89,6 +89,8 @@ PathResult runAstar(const CityGraph& graph, string startName, string goalName,
             int neighborId = neighbors[i].to;
             double edgeWeight = neighbors[i].weight;
 
+            if (!std::isfinite(edgeWeight)) continue;
+
             double tentativeG = gScore[currentNode] + edgeWeight;
 
             if (!visited[neighborId] && tentativeG < gScore[neighborId]) {

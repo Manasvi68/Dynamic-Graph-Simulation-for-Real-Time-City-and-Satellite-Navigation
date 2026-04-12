@@ -9,11 +9,7 @@ class TrafficSimulator{
     Blockchain* blockchain;    //pointer to the blockchain
     public:
     TrafficSimulator(CityGraph* g, Blockchain* bc);
-    //randomly pick a road and increase it's weight(simulates congestion)
-    void randomCongestion();
-    //randomly pick a road and remove it(simulates road closure)
-    void randomClosure();
-    //do one random simulation step(either congestion or closure)
+    // pick a random undirected road and apply a random interrupt (Normal / Traffic / … / Blocked)
     void stepOnce();
 };
 #endif

@@ -15,12 +15,36 @@
 #include <sstream>
 #include <string>
 #include <algorithm>
+#include <cmath>
 #include <ctime>
 #include <cstring>
 #include <cstdlib>
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 using namespace std;
 using json = nlohmann::json;
+
+// Data files live next to server.exe so graph loads/saves work no matter the shell CWD
+static string dataFile(const string& name) {
+#if defined(_WIN32)
+    char buf[MAX_PATH];
+    DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+    if (n > 0 && n < MAX_PATH) {
+        string exe(buf, static_cast<size_t>(n));
+        size_t slash = exe.find_last_of("\\/");
+        string dir = (slash == string::npos) ? string(".") : exe.substr(0, slash);
+        return dir + "\\" + name;
+    }
+#endif
+    return name;
+}
+
+static void ensureCityGraphHasRoads();
 
 // ── globals ──
 // (in a real project these would be in a class, but for a student project globals are fine)
@@ -208,10 +232,14 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
     if (req.method == "GET" && req.path == "/api/graph") {
         json j;
 
+        // scope=city always returns the Delhi road graph (fixes empty graph when app is in satellite mode)
+        string scope = urlDecode(getQueryParam(req.query, "scope"));
+
         CityGraph* activeGraph;
-        if (currentMode == "satellite" && satWorld != nullptr) {
+        if (currentMode == "satellite" && satWorld != nullptr && scope != "city") {
             activeGraph = &(satWorld->getGraph());
         } else {
+            ensureCityGraphHasRoads();
             activeGraph = &cityGraph;
         }
 
@@ -252,7 +280,17 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
                 edgeObj["fromName"] = activeGraph->getNodeName(fromId);
                 edgeObj["to"] = edges[i].to;
                 edgeObj["toName"] = activeGraph->getNodeName(edges[i].to);
-                edgeObj["weight"] = edges[i].weight;
+                if (isfinite(edges[i].weight)) {
+                    edgeObj["weight"] = edges[i].weight;
+                } else {
+                    edgeObj["weight"] = nullptr;
+                }
+                edgeObj["baseDistance"] = edges[i].baseDistance;
+                if (isfinite(edges[i].interruptFactor)) {
+                    edgeObj["interruptFactor"] = edges[i].interruptFactor;
+                } else {
+                    edgeObj["interruptFactor"] = "infinity";
+                }
                 edgesArr.push_back(edgeObj);
             }
         }
@@ -311,6 +349,7 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         if (currentMode == "satellite" && satWorld != nullptr) {
             activeGraph = &(satWorld->getGraph());
         } else {
+            ensureCityGraphHasRoads();
             activeGraph = &cityGraph;
         }
 
@@ -350,15 +389,15 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
     if (req.method == "POST" && req.path == "/api/sim/step") {
         if (currentMode == "satellite" && satWorld != nullptr) {
             satWorld->orbitStep();
-            satWorld->getGraph().saveToJson("satellite_graph.json");
-            satWorld->saveToFiles("satellite_orbit.json");
+            satWorld->getGraph().saveToJson(dataFile("satellite_graph.json"));
+            satWorld->saveToFiles(dataFile("satellite_orbit.json"));
         } else {
             if (trafficSim != nullptr) {
                 trafficSim->stepOnce();
             }
-            cityGraph.saveToJson("city_graph.json");
+            cityGraph.saveToJson(dataFile("city_graph.json"));
         }
-        blockchain.saveToJson("blockchain.json");
+        blockchain.saveToJson(dataFile("blockchain.json"));
 
         json j;
         j["status"] = "ok";
@@ -414,8 +453,8 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         event.timestamp = to_string(time(0));
         blockchain.addBlockFromEvent(event);
 
-        cityGraph.saveToJson("city_graph.json");
-        blockchain.saveToJson("blockchain.json");
+        cityGraph.saveToJson(dataFile("city_graph.json"));
+        blockchain.saveToJson(dataFile("blockchain.json"));
 
         json j;
         j["status"] = "ok";
@@ -463,8 +502,8 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         event.timestamp = to_string(time(0));
         blockchain.addBlockFromEvent(event);
 
-        cityGraph.saveToJson("city_graph.json");
-        blockchain.saveToJson("blockchain.json");
+        cityGraph.saveToJson(dataFile("city_graph.json"));
+        blockchain.saveToJson(dataFile("blockchain.json"));
 
         json j;
         j["status"] = "ok";
@@ -502,7 +541,7 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         // save mode preference
         json modeJson;
         modeJson["mode"] = currentMode;
-        ofstream modeFile("app_mode.json");
+        ofstream modeFile(dataFile("app_mode.json"));
         if (modeFile.is_open()) {
             modeFile << modeJson.dump(2);
             modeFile.close();
@@ -525,19 +564,8 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
     sendResponse(client, 404, "application/json", "{\"error\":\"Not found\"}");
 }
 
-// ── initialize the default city graph ──
-static void initDefaultCity() {
-    cityGraph.addIntersection("Connaught Place");
-    cityGraph.addIntersection("Chandni Chowk");
-    cityGraph.addIntersection("Karol Bagh");
-    cityGraph.addIntersection("Saket");
-    cityGraph.addIntersection("Dwarka");
-    cityGraph.addIntersection("Nehru Place");
-    cityGraph.addIntersection("Lajpat Nagar");
-    cityGraph.addIntersection("Hauz Khas");
-    cityGraph.addIntersection("Rohini");
-    cityGraph.addIntersection("Janakpuri");
-
+// ── default Delhi road layer (requires intersections to exist) ──
+static void addDefaultDelhiRoads() {
     cityGraph.addRoad("Connaught Place", "Chandni Chowk", 4.0);
     cityGraph.addRoad("Connaught Place", "Karol Bagh", 3.5);
     cityGraph.addRoad("Connaught Place", "Nehru Place", 6.0);
@@ -554,30 +582,93 @@ static void initDefaultCity() {
     cityGraph.addRoad("Connaught Place", "Lajpat Nagar", 7.0);
 }
 
+// ── initialize the default city graph ──
+static void initDefaultCity() {
+    cityGraph.addIntersection("Connaught Place");
+    cityGraph.addIntersection("Chandni Chowk");
+    cityGraph.addIntersection("Karol Bagh");
+    cityGraph.addIntersection("Saket");
+    cityGraph.addIntersection("Dwarka");
+    cityGraph.addIntersection("Nehru Place");
+    cityGraph.addIntersection("Lajpat Nagar");
+    cityGraph.addIntersection("Hauz Khas");
+    cityGraph.addIntersection("Rohini");
+    cityGraph.addIntersection("Janakpuri");
+
+    addDefaultDelhiRoads();
+}
+
+static int countDirectedEdges() {
+    int c = 0;
+    const auto& adj = cityGraph.getAdjacencyList();
+    for (auto it = adj.begin(); it != adj.end(); ++it) {
+        c += static_cast<int>(it->second.size());
+    }
+    return c;
+}
+
+// Never run with zero roads (broken save, manual edit, etc.) — restore a routable network
+static void ensureCityGraphHasRoads() {
+    if (countDirectedEdges() > 0) return;
+
+    if (cityGraph.getNodeCount() == 0) {
+        initDefaultCity();
+    } else {
+        addDefaultDelhiRoads();
+        if (countDirectedEdges() == 0) {
+            cityGraph.clear();
+            initDefaultCity();
+        }
+    }
+
+    cityGraph.saveToJson(dataFile("city_graph.json"));
+    cout << "City graph had no roads; default road network restored and saved next to server.exe." << endl;
+}
+
 int main() {
     cout << "=== DSA Project Server ===" << endl;
 
     // try to load saved state, or create default city
-    ifstream cityFile("city_graph.json");
+    string cityPrimary = dataFile("city_graph.json");
+    string cityPath = cityPrimary;
+    ifstream cityFile(cityPath);
+    if (!cityFile.is_open()) {
+        ifstream cwdTry("city_graph.json");
+        if (cwdTry.is_open()) {
+            cwdTry.close();
+            cityPath = "city_graph.json";
+            cityFile.open(cityPath);
+        }
+    }
     if (cityFile.is_open()) {
         cityFile.close();
-        cityGraph.loadFromJson("city_graph.json");
-        cout << "Loaded city graph from file." << endl;
+        cityGraph.loadFromJson(cityPath);
+        cout << "Loaded city graph from: " << cityPath << endl;
+        if (cityPath != cityPrimary) {
+            ensureCityGraphHasRoads();
+            cityGraph.saveToJson(cityPrimary);
+            cout << "Copied graph to exe directory: " << cityPrimary << endl;
+        }
     } else {
         initDefaultCity();
-        cout << "Created default city graph." << endl;
+        cityGraph.saveToJson(cityPrimary);
+        cout << "Created default city graph at: " << cityPrimary << endl;
     }
 
+    ensureCityGraphHasRoads();
+
     // load blockchain if exists
-    ifstream chainFile("blockchain.json");
+    string chainPath = dataFile("blockchain.json");
+    ifstream chainFile(chainPath);
     if (chainFile.is_open()) {
         chainFile.close();
-        blockchain.loadFromJson("blockchain.json");
+        blockchain.loadFromJson(chainPath);
         cout << "Loaded blockchain from file." << endl;
     }
 
     // load mode preference
-    ifstream modeFile("app_mode.json");
+    string modePath = dataFile("app_mode.json");
+    ifstream modeFile(modePath);
     if (modeFile.is_open()) {
         json modeJson;
         modeFile >> modeJson;
@@ -590,10 +681,11 @@ int main() {
     // if in satellite mode, restore satellite state
     if (currentMode == "satellite") {
         satWorld = new SatelliteWorld(&blockchain, 15.0);
-        ifstream orbitFile("satellite_orbit.json");
+        string orbitPath = dataFile("satellite_orbit.json");
+        ifstream orbitFile(orbitPath);
         if (orbitFile.is_open()) {
             orbitFile.close();
-            satWorld->loadFromFiles("satellite_orbit.json");
+            satWorld->loadFromFiles(orbitPath);
             cout << "Loaded satellite orbit state." << endl;
         }
     }

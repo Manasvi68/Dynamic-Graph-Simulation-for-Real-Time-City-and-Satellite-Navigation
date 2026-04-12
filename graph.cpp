@@ -1,9 +1,25 @@
 #include "graph.h"
 #include "json.hpp"
+#include <cmath>
 #include <iostream>
 #include <fstream>
+#include <limits>
 
 using namespace std;
+
+namespace {
+
+constexpr double kNormalInterrupt = 1.0;
+
+void recomputeEdgeWeight(Edge& e) {
+    if (!std::isfinite(e.interruptFactor)) {
+        e.weight = numeric_limits<double>::infinity();
+    } else {
+        e.weight = e.baseDistance * (1.0 + e.interruptFactor);
+    }
+}
+
+}  // namespace
 using json = nlohmann::json;
 
 // ── constructor ──
@@ -59,14 +75,18 @@ void CityGraph::addRoad(string from, string to, double weight, bool oneWay) {
     // add forward edge: from -> to
     Edge forwardEdge;
     forwardEdge.to = toId;
-    forwardEdge.weight = weight;
+    forwardEdge.interruptFactor = kNormalInterrupt;
+    forwardEdge.baseDistance = weight / (1.0 + kNormalInterrupt);
+    recomputeEdgeWeight(forwardEdge);
     adjacencyList[fromId].push_back(forwardEdge);
 
     // if it's not one-way, also add reverse edge: to -> from
     if (!oneWay) {
         Edge reverseEdge;
         reverseEdge.to = fromId;
-        reverseEdge.weight = weight;
+        reverseEdge.interruptFactor = kNormalInterrupt;
+        reverseEdge.baseDistance = forwardEdge.baseDistance;
+        recomputeEdgeWeight(reverseEdge);
         adjacencyList[toId].push_back(reverseEdge);
     }
 }
@@ -112,27 +132,96 @@ void CityGraph::updateRoadWeight(string from, string to, double newWeight) {
 
     bool found = false;
 
-    // update forward edge
+    double fForward = kNormalInterrupt;
+    double baseForward = 0;
+
+    // read forward edge state, then set effective travel cost while keeping interrupt semantics
     auto& edgesFrom = adjacencyList[fromId];
     for (int i = 0; i < edgesFrom.size(); i++) {
         if (edgesFrom[i].to == toId) {
-            edgesFrom[i].weight = newWeight;
+            fForward = edgesFrom[i].interruptFactor;
+            baseForward = edgesFrom[i].baseDistance;
             found = true;
-            break;
-        }
-    }
-
-    // update reverse edge too (if bidirectional road exists)
-    auto& edgesTo = adjacencyList[toId];
-    for (int i = 0; i < edgesTo.size(); i++) {
-        if (edgesTo[i].to == fromId) {
-            edgesTo[i].weight = newWeight;
             break;
         }
     }
 
     if (!found) {
         cout << "Road from " << from << " to " << to << " not found." << endl;
+        return;
+    }
+
+    if (!isfinite(fForward)) {
+        // was blocked: interpret manual weight as new nominal cost under normal interrupt
+        fForward = kNormalInterrupt;
+        baseForward = newWeight / (1.0 + kNormalInterrupt);
+    } else if (isfinite(newWeight) && newWeight > 0) {
+        baseForward = newWeight / (1.0 + fForward);
+    }
+
+    for (int i = 0; i < edgesFrom.size(); i++) {
+        if (edgesFrom[i].to == toId) {
+            edgesFrom[i].interruptFactor = fForward;
+            edgesFrom[i].baseDistance = baseForward;
+            recomputeEdgeWeight(edgesFrom[i]);
+            break;
+        }
+    }
+
+    auto& edgesTo = adjacencyList[toId];
+    for (int i = 0; i < edgesTo.size(); i++) {
+        if (edgesTo[i].to == fromId) {
+            edgesTo[i].interruptFactor = fForward;
+            edgesTo[i].baseDistance = baseForward;
+            recomputeEdgeWeight(edgesTo[i]);
+            break;
+        }
+    }
+}
+
+void CityGraph::setRoadInterruptFactor(string from, string to, double interruptFactor) {
+    int fromId = getNodeId(from);
+    int toId = getNodeId(to);
+
+    if (fromId == -1 || toId == -1) {
+        cout << "Can't set interrupt: intersection not found." << endl;
+        return;
+    }
+
+    double base = 0;
+    bool haveForward = false;
+
+    auto& edgesFrom = adjacencyList[fromId];
+    for (int i = 0; i < edgesFrom.size(); i++) {
+        if (edgesFrom[i].to == toId) {
+            base = edgesFrom[i].baseDistance;
+            haveForward = true;
+            break;
+        }
+    }
+
+    if (!haveForward) {
+        cout << "Road from " << from << " to " << to << " not found." << endl;
+        return;
+    }
+
+    for (int i = 0; i < edgesFrom.size(); i++) {
+        if (edgesFrom[i].to == toId) {
+            edgesFrom[i].baseDistance = base;
+            edgesFrom[i].interruptFactor = interruptFactor;
+            recomputeEdgeWeight(edgesFrom[i]);
+            break;
+        }
+    }
+
+    auto& edgesTo = adjacencyList[toId];
+    for (int i = 0; i < edgesTo.size(); i++) {
+        if (edgesTo[i].to == fromId) {
+            edgesTo[i].baseDistance = base;
+            edgesTo[i].interruptFactor = interruptFactor;
+            recomputeEdgeWeight(edgesTo[i]);
+            break;
+        }
     }
 }
 
@@ -217,7 +306,17 @@ void CityGraph::saveToJson(string filename) const {
             json edgeObj;
             edgeObj["from"] = fromId;
             edgeObj["to"] = edges[i].to;
-            edgeObj["weight"] = edges[i].weight;
+            if (!isfinite(edges[i].weight)) {
+                edgeObj["weight"] = nullptr;
+            } else {
+                edgeObj["weight"] = edges[i].weight;
+            }
+            edgeObj["baseDistance"] = edges[i].baseDistance;
+            if (!isfinite(edges[i].interruptFactor)) {
+                edgeObj["interruptFactor"] = "infinity";
+            } else {
+                edgeObj["interruptFactor"] = edges[i].interruptFactor;
+            }
             edgesJson.push_back(edgeObj);
         }
     }
@@ -268,11 +367,30 @@ void CityGraph::loadFromJson(string filename) {
         for (auto& edgeObj : j["edges"]) {
             int fromId = edgeObj["from"];
             int toId = edgeObj["to"];
-            double weight = edgeObj["weight"];
 
             Edge e;
             e.to = toId;
-            e.weight = weight;
+
+            double f = kNormalInterrupt;
+            if (edgeObj.contains("interruptFactor")) {
+                if (edgeObj["interruptFactor"].is_string() &&
+                    edgeObj["interruptFactor"].get<string>() == "infinity") {
+                    f = numeric_limits<double>::infinity();
+                } else if (edgeObj["interruptFactor"].is_number()) {
+                    f = edgeObj["interruptFactor"].get<double>();
+                }
+            }
+
+            if (edgeObj.contains("baseDistance") && edgeObj["baseDistance"].is_number()) {
+                e.baseDistance = edgeObj["baseDistance"].get<double>();
+                e.interruptFactor = f;
+            } else {
+                double legacyW = edgeObj.value("weight", 0.0);
+                e.interruptFactor = kNormalInterrupt;
+                e.baseDistance = legacyW / (1.0 + kNormalInterrupt);
+            }
+
+            recomputeEdgeWeight(e);
             adjacencyList[fromId].push_back(e);
         }
     }

@@ -8,9 +8,13 @@
 using namespace std;
 
 // represents a single road from one intersection to another
+// Effective cost: weight = baseDistance * (1 + interruptFactor)
+// "Normal" uses interruptFactor 1 so legacy addRoad(w) keeps effective weight w (base = w/2).
 struct Edge {
-    int to;         
-    double weight;  
+    int to = -1;
+    double baseDistance = 0;
+    double interruptFactor = 1.0;
+    double weight = 0;
 };
 
 class CityGraph {
@@ -38,6 +42,9 @@ public:
 
     // change the weight of an existing road
     void updateRoadWeight(string from, string to, double newWeight);
+
+    // set interrupt factor for a road (both directions if bidirectional); recomputes weight
+    void setRoadInterruptFactor(string from, string to, double interruptFactor);
 
     // get all roads leaving a given node
     vector<Edge> getNeighbors(int nodeId) const;

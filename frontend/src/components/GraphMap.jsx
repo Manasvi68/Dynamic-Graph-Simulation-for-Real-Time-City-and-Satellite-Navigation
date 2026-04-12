@@ -36,8 +36,16 @@ function GraphMap({ graphData, pathData, mode }) {
     return keys;
   }, [pathData]);
 
-  const mapCenter = mode === 'satellite' ? [0, 0] : [28.61, 77.18];
-  const mapZoom = mode === 'satellite' ? 3 : 12;
+  // Stable references so react-leaflet does not recentre the map on every graph refresh
+  const mapCenter = useMemo(
+    () => (mode === 'satellite' ? [0, 0] : [28.61, 77.18]),
+    [mode]
+  );
+  const mapZoom = useMemo(() => (mode === 'satellite' ? 3 : 12), [mode]);
+  const mapBgStyle = useMemo(
+    () => ({ background: mode === 'satellite' ? '#0a0a0e' : '#dde4ed' }),
+    [mode]
+  );
   const crs = mode === 'satellite' ? CRS.Simple : CRS.EPSG3857;
 
   if (!graphData?.nodes) {
@@ -68,7 +76,9 @@ function GraphMap({ graphData, pathData, mode }) {
           zoom={mapZoom}
           crs={crs}
           className="z-0 h-full w-full rounded-b-xl"
-          style={{ background: mode === 'satellite' ? '#0a0a0e' : '#dde4ed' }}
+          style={mapBgStyle}
+          scrollWheelZoom
+          zoomControl
         >
           {mode !== 'satellite' && (
             <TileLayer

@@ -1,5 +1,6 @@
 #include "dijkstra.h"
 #include "graph.h"
+#include <cmath>
 #include <iostream>
 #include <queue>
 #include <climits>
@@ -88,6 +89,8 @@ PathResult runDijkstra(const CityGraph& graph, string startName, string goalName
         for (int i = 0; i < neighbors.size(); i++) {
             int neighborId = neighbors[i].to;
             double edgeWeight = neighbors[i].weight;
+
+            if (!std::isfinite(edgeWeight)) continue;
 
             // can we reach this neighbor faster through currentNode?
             if (!visited[neighborId] && currentDist + edgeWeight < dist[neighborId]) {

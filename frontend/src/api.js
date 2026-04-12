@@ -1,8 +1,9 @@
 const BASE = '';  // empty string = same origin (works with proxy in dev, and direct in production)
 
-// fetch the current graph (nodes + edges)
-export async function getGraph() {
-  const res = await fetch(`${BASE}/api/graph`);
+// fetch graph; use scope: 'city' for the Delhi road network even if server mode is satellite
+export async function getGraph(options = {}) {
+  const q = options.scope === 'city' ? '?scope=city' : '';
+  const res = await fetch(`${BASE}/api/graph${q}`);
   return res.json();
 }
 

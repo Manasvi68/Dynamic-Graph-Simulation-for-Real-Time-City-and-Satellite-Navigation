@@ -9,14 +9,25 @@ function MapResize() {
     const el = containerRef.current;
     if (!el) return;
 
+    let debounceTimer;
+    const runInvalidate = () => {
+      // pan: false keeps the view fixed when the panel resizes (e.g. after graph / path updates)
+      map.invalidateSize({ animate: false, pan: false });
+    };
+
     const ro = new ResizeObserver(() => {
-      map.invalidateSize({ animate: false });
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(runInvalidate, 80);
     });
     ro.observe(el);
 
-    setTimeout(() => map.invalidateSize(), 200);
+    const initialTimer = setTimeout(runInvalidate, 200);
 
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      clearTimeout(debounceTimer);
+      clearTimeout(initialTimer);
+    };
   }, [map]);
 
   return null;
