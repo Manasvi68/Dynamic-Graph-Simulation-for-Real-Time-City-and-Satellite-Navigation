@@ -380,7 +380,7 @@ function App() {
             <button
               type="button"
               onClick={handleSimStep}
-              disabled={busy || mode !== 'city'}
+              disabled={busy}
               className="w-full rounded-lg border border-amber-300/40 bg-gradient-to-b from-amber-500 to-amber-700 py-2.5 text-sm font-bold text-white shadow-lg shadow-amber-950/60 hover:brightness-110 disabled:opacity-50"
             >
               Run simulation step

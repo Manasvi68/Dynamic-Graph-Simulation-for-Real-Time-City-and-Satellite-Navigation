@@ -48,6 +48,12 @@ function GraphMap({ graphData, pathData, mode }) {
   );
   const crs = mode === 'satellite' ? CRS.Simple : CRS.EPSG3857;
 
+  const visibleEdges = useMemo(() => {
+    const edges = graphData?.edges ?? [];
+    // Server uses `weight: null` to represent infinity/blocked edges.
+    return edges.filter((e) => e && e.weight !== null && Number.isFinite(e.weight));
+  }, [graphData]);
+
   if (!graphData?.nodes) {
     return (
       <div className="flex h-full min-h-0 w-full items-center justify-center rounded-xl border border-white/10 bg-zinc-950">
@@ -66,7 +72,7 @@ function GraphMap({ graphData, pathData, mode }) {
           {mode === 'satellite' ? 'Satellite view' : 'City map'}
         </span>
         <span className="font-mono text-xs font-semibold text-zinc-200">
-          {graphData.nodeCount} nodes · {graphData.edges?.length ?? 0} edges
+          {graphData.nodeCount} nodes · {visibleEdges.length} edges
         </span>
       </div>
       <div className="relative min-h-0 flex-1">
@@ -89,7 +95,7 @@ function GraphMap({ graphData, pathData, mode }) {
 
           <MapResize />
 
-          {graphData.edges?.map((edge, idx) => {
+          {visibleEdges.map((edge, idx) => {
             const fromPos = nodePositions[edge.from];
             const toPos = nodePositions[edge.to];
             if (!fromPos || !toPos) return null;
@@ -105,7 +111,14 @@ function GraphMap({ graphData, pathData, mode }) {
                   weight: onPath ? 5 : 2,
                   opacity: onPath ? 1 : 0.55,
                 }}
-              />
+              >
+                <Tooltip sticky direction="top" offset={[0, -6]}>
+                  <span className="font-mono text-xs font-semibold text-zinc-900">
+                    {edge.fromName ? `${edge.fromName} → ` : ''}
+                    {edge.toName ?? edge.to}: {Number(edge.weight).toFixed(2)}
+                  </span>
+                </Tooltip>
+              </Polyline>
             );
           })}
 

@@ -275,16 +275,15 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
             int fromId = it->first;
             const auto& edges = it->second;
             for (int i = 0; i < edges.size(); i++) {
+                // If weight is infinite, treat it as removed (do not render on map).
+                if (!isfinite(edges[i].weight)) continue;
+
                 json edgeObj;
                 edgeObj["from"] = fromId;
                 edgeObj["fromName"] = activeGraph->getNodeName(fromId);
                 edgeObj["to"] = edges[i].to;
                 edgeObj["toName"] = activeGraph->getNodeName(edges[i].to);
-                if (isfinite(edges[i].weight)) {
-                    edgeObj["weight"] = edges[i].weight;
-                } else {
-                    edgeObj["weight"] = nullptr;
-                }
+                edgeObj["weight"] = edges[i].weight;
                 edgeObj["baseDistance"] = edges[i].baseDistance;
                 if (isfinite(edges[i].interruptFactor)) {
                     edgeObj["interruptFactor"] = edges[i].interruptFactor;
