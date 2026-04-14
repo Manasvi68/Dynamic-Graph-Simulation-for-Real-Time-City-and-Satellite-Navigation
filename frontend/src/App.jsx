@@ -281,7 +281,7 @@ function App() {
       <div className="flex h-full min-h-0 flex-1 flex-row overflow-hidden p-3">
         {/* Sidebar */}
         <aside
-          className="event-log-sidebar grid h-full min-h-0 max-h-full shrink-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2.5 overflow-hidden pr-1"
+          className="event-log-sidebar flex h-full max-h-full shrink-0 flex-col gap-2.5 overflow-y-auto pr-1"
           style={{ width: sidebarWidth }}
         >
           {/* ── Route panel ── */}
@@ -429,8 +429,8 @@ function App() {
             </button>
           </section>
 
-          {/* ── Event log panel (scrolls independently; rest of sidebar stays fixed) ── */}
-          <section className="panel-dark flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3.5">
+          {/* ── Event log panel (scrolls naturally with the rest of the sidebar) ── */}
+          <section className="panel-dark flex min-w-0 flex-col p-3.5">
             <h2 className="mb-1 flex shrink-0 items-center gap-2 text-sm font-bold uppercase tracking-wide text-white">
               <Shield size={16} className="text-emerald-400" />
               Event log
@@ -439,7 +439,7 @@ function App() {
               Tap a row to expand. Scroll this list to see older entries.
             </p>
             <div
-              className="event-log-scroll h-0 min-h-0 flex-1 overflow-y-scroll overflow-x-hidden rounded-lg border border-white/10 bg-black/25 py-1 pl-1 pr-1"
+              className="event-log-scroll rounded-lg border border-white/10 bg-black/25 py-1 pl-1 pr-1"
               role="region"
               aria-label="Event log entries"
             >
