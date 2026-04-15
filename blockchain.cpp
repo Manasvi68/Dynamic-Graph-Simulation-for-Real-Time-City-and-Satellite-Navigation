@@ -1,5 +1,6 @@
 #include "blockchain.h"
 #include "json.hpp"
+#include <cmath>
 #include <iostream>
 #include <fstream>
 #include <ctime>
@@ -61,8 +62,8 @@ void Blockchain::addBlockFromEvent(NetworkEvent event) {
     eventJson["type"] = event.type;
     eventJson["from"] = event.fromNode;
     eventJson["to"] = event.toNode;
-    eventJson["oldWeight"] = event.oldWeight;
-    eventJson["newWeight"] = event.newWeight;
+    eventJson["oldWeight"] = isfinite(event.oldWeight) ? json(event.oldWeight) : json(nullptr);
+    eventJson["newWeight"] = isfinite(event.newWeight) ? json(event.newWeight) : json(nullptr);
     eventJson["timestamp"] = event.timestamp;
     newBlock.data = eventJson.dump();
 

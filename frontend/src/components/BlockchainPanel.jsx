@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Shield, ShieldCheck } from 'lucide-react';
 
+function formatWeight(w) {
+  if (w === null || w === undefined) return '∞';
+  if (typeof w === 'number' && Number.isFinite(w)) return w.toFixed(2);
+  return String(w);
+}
+
 const typeLabels = {
   normal: 'Normal',
   light_traffic: 'Light traffic',
@@ -15,6 +21,12 @@ const typeLabels = {
   RECOVERY: 'Road recovered',
   SAT_LINK_UP: 'Satellite link added',
   SAT_LINK_DOWN: 'Satellite link lost',
+  SIM_NORMAL: 'Sim: normal',
+  SIM_TRAFFIC: 'Sim: traffic',
+  SIM_CONSTRUCTION: 'Sim: construction',
+  SIM_ACCIDENT: 'Sim: accident',
+  SIM_BLOCKED: 'Sim: road blocked (∞)',
+  SIM_INTERRUPT: 'Sim: interrupt',
 };
 
 function BlockchainPanel({ blocks }) {
@@ -33,7 +45,7 @@ function BlockchainPanel({ blocks }) {
   };
 
   return (
-    <div className="h-full max-h-full space-y-2 overflow-y-auto overflow-x-hidden pr-0.5">
+    <div className="space-y-2 pr-1 pb-1">
       {blocks.map((block) => {
         const isExpanded = expandedBlock === block.index;
         const isGenesis = block.index === 0;
@@ -100,11 +112,11 @@ function BlockchainPanel({ blocks }) {
                       <span className="text-zinc-500"> → </span>
                       <span className="font-bold text-white">{eventData.to}</span>
                     </div>
-                    {eventData.oldWeight > 0 && (
+                    {'oldWeight' in eventData && 'newWeight' in eventData && (
                       <div className="text-zinc-100">
                         <span className="font-semibold text-zinc-400">Weight </span>
                         <span className="font-mono font-bold text-white">
-                          {eventData.oldWeight} → {eventData.newWeight}
+                          {formatWeight(eventData.oldWeight)} → {formatWeight(eventData.newWeight)}
                         </span>
                       </div>
                     )}
