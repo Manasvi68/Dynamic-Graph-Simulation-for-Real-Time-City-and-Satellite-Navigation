@@ -28,8 +28,8 @@ function RoutePanel({ pathData, graphData }) {
   const totalWeight = segments.reduce((s, seg) => s + seg.weight, 0);
 
   return (
-    <div className="panel-dark-tight mt-3 p-3 text-sm">
-      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-400">Route breakdown</p>
+    <div className="panel-dark-tight mt-3 p-3 text-base">
+      <p className="mb-2 text-sm font-bold uppercase tracking-wide text-zinc-400">Route breakdown</p>
       <div className="space-y-1">
         {segments.map((seg, i) => {
           const mult = seg.baseWeight > 0 ? (seg.weight / seg.baseWeight).toFixed(1) : '1.0';
@@ -38,20 +38,20 @@ function RoutePanel({ pathData, graphData }) {
               <span className="font-medium text-white">{seg.from}</span>
               <span className="text-zinc-500">&rarr;</span>
               <span className="font-medium text-white">{seg.to}</span>
-              <span className="ml-auto font-mono text-xs text-cyan-300">{seg.weight.toFixed(2)} km</span>
+              <span className="ml-auto font-mono text-sm text-cyan-300">{seg.weight.toFixed(2)} km</span>
               {mult !== '1.0' && (
-                <span className="font-mono text-xs text-amber-300">x{mult}</span>
+                <span className="font-mono text-sm text-amber-300">x{mult}</span>
               )}
-              <span className={`text-xs cond-${seg.condition}`}>{seg.condition}</span>
+              <span className={`text-sm cond-${seg.condition}`}>{seg.condition}</span>
             </div>
           );
         })}
       </div>
       <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2">
-        <span className="text-xs font-bold uppercase text-zinc-400">Total</span>
-        <span className="font-mono text-sm font-bold text-cyan-200">{totalWeight.toFixed(2)} km</span>
+        <span className="text-sm font-bold uppercase text-zinc-400">Total</span>
+        <span className="font-mono text-base font-bold text-cyan-200">{totalWeight.toFixed(2)} km</span>
       </div>
-      <div className="mt-1 text-xs text-zinc-400">
+      <div className="mt-1 text-sm text-zinc-400">
         Algorithm: <span className="font-semibold text-zinc-200">{pathData.algorithm}</span>
         {' · '}Nodes explored: <span className="font-semibold text-zinc-200">{pathData.nodesExplored}</span>
       </div>

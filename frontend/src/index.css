@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -13,7 +13,7 @@ body,
 }
 
 body {
-  font-family: Inter, system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   color: #fafafa;
@@ -22,7 +22,7 @@ body {
 /* Leaflet — light map tiles, no filter */
 .leaflet-container {
   background: #dde4ed !important;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 
 /* ── Drag handle between sidebar and map ── */
@@ -123,7 +123,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: #121722;
   padding: 0.5rem 0.7rem;
-  font-size: 0.875rem;
+  font-size: 0.95rem;
   font-weight: 500;
   line-height: 1.35;
   color: #ffffff;
@@ -149,8 +149,8 @@ body {
 .btn-accent {
   border-radius: 0.5rem;
   background: linear-gradient(180deg, #22c3ee 0%, #0284c7 100%);
-  padding: 0.55rem 0.85rem;
-  font-size: 0.875rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -234,12 +234,12 @@ body {
   bottom: 12px;
   left: 12px;
   z-index: 1000;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 .legend-toggle {
   display: block;
   padding: 4px 12px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -270,7 +270,7 @@ body {
   gap: 8px;
 }
 .legend-label {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   color: #d4d4d8;
 }
@@ -280,8 +280,8 @@ body {
 
 /* ── Edge tooltip ── */
 .edge-tooltip {
-  font-family: Inter, system-ui, sans-serif;
-  font-size: 12px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
   line-height: 1.5;
 }
 .cond-normal        { color: #3b82f6; }
@@ -391,7 +391,7 @@ body {
   min-width: 160px;
 }
 .sat-info-title {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #22d3ee;
@@ -401,7 +401,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: 12px;
   color: #94a3b8;
   line-height: 1.8;
 }
@@ -456,7 +456,7 @@ body {
   border: 1px solid rgba(255,255,255,0.1);
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: #e4e4e7;
   pointer-events: auto;
@@ -483,6 +483,92 @@ body {
 .toast-error   { border-left: 3px solid #ef4444; }
 .toast-success { border-left: 3px solid #22c55e; }
 
+/* ── Mode Toggle (animated pill-style) ── */
+.mode-toggle-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(15, 15, 22, 0.85);
+  padding: 3px;
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+}
+.mode-toggle-pill {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+  border-radius: 8px;
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.15, 1),
+              background 0.32s ease,
+              box-shadow 0.32s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.mode-toggle-pill--city {
+  transform: translateX(0);
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.35),
+              0 2px 8px rgba(2, 132, 199, 0.3);
+}
+.mode-toggle-pill--sat {
+  transform: translateX(100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  box-shadow: 0 0 14px rgba(124, 58, 237, 0.35),
+              0 2px 8px rgba(109, 40, 217, 0.3);
+}
+.mode-toggle-option {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  transition: color 0.25s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.mode-toggle-option:hover:not(:disabled) {
+  color: rgba(255,255,255,0.65);
+}
+.mode-toggle-option--active {
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.mode-toggle-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 639px) {
+  .mode-toggle-option span {
+    display: none;
+  }
+  .mode-toggle-option {
+    padding: 6px 10px;
+  }
+}
+
+/* ── Animated glow for active path polylines ── */
+@keyframes path-pulse {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.30; }
+}
+.path-glow {
+  animation: path-pulse 2.5s ease-in-out infinite;
+}
+
 /* ── Mobile responsive ── */
 @media (max-width: 639px) {
   .sidebar-aside {
@@ -499,3 +585,4 @@ body {
     max-width: none;
   }
 }
+

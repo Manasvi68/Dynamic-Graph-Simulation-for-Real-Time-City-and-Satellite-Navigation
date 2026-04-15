@@ -78,10 +78,10 @@ function SatelliteView({ graphData, pathData }) {
   return (
     <div className="sat-view">
       <div className="sat-header">
-        <span className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+        <span className="text-sm font-bold uppercase tracking-widest text-cyan-300">
           Satellite command
         </span>
-        <span className="font-mono text-xs font-semibold text-zinc-400">
+        <span className="font-mono text-sm font-semibold text-zinc-400">
           {nodes.length} satellites · {edges.length} links
         </span>
       </div>
@@ -195,11 +195,11 @@ function SatelliteView({ graphData, pathData }) {
           })}
           {pathData?.found && (
             <div className="mt-2 border-t border-cyan-900/50 pt-2">
-              <div className="text-[10px] font-bold text-cyan-400">PATH</div>
-              <div className="text-[10px] text-zinc-400 leading-relaxed">
+              <div className="text-xs font-bold text-cyan-400">PATH</div>
+              <div className="text-xs text-zinc-400 leading-relaxed">
                 {pathData.path.map((s) => s.name).join(' → ')}
               </div>
-              <div className="text-[10px] text-zinc-500 mt-0.5">
+              <div className="text-xs text-zinc-500 mt-0.5">
                 Signal delay: {(pathData.totalCost / 50 * 1000).toFixed(0)} ms
               </div>
             </div>

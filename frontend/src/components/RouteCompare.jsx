@@ -13,7 +13,7 @@ function RouteCompare({ currentRoute, algo }) {
           <span className="h-2 w-2 rounded-full" style={{ background: COLORS[algo] }} />
           <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">{LABELS[algo]} Performance</span>
         </div>
-        <p className="font-mono text-sm font-bold" style={{ color: COLORS[algo] }}>
+        <p className="font-mono text-base font-bold" style={{ color: COLORS[algo] }}>
           {currentRoute.totalCost.toFixed(2)}<span className="text-[9px] text-zinc-500"> km</span>
         </p>
         <p className="text-[9px] text-zinc-500">{currentRoute.nodesExplored} nodes explored · {currentRoute.path.length} hops</p>

@@ -60,7 +60,7 @@ function AlgoVisualizer({ pathData, onHighlight }) {
 
   return (
     <div className="panel-dark-tight mt-3 p-3">
-      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-400">Algorithm visualization</p>
+      <p className="mb-2 text-sm font-bold uppercase tracking-wide text-zinc-400">Algorithm visualization</p>
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => setPlaying(!playing)} className="algo-btn" title={playing ? 'Pause' : 'Play'}>
           {playing ? <Pause size={14} /> : <Play size={14} />}
@@ -80,17 +80,17 @@ function AlgoVisualizer({ pathData, onHighlight }) {
           className="ml-2 h-1.5 flex-1 cursor-pointer accent-sky-500"
           title="Speed"
         />
-        <span className="font-mono text-xs text-zinc-400 w-14 text-right">
+        <span className="font-mono text-sm text-zinc-400 w-14 text-right">
           {step < 0 ? '---' : `${step + 1}/${exploration.length}`}
         </span>
       </div>
       {step >= 0 && (
-        <div className="mt-2 text-xs text-zinc-300">
+        <div className="mt-2 text-sm text-zinc-300">
           Exploring: <span className="font-bold text-emerald-300">{exploration[step]?.name}</span>
           {' '}(dist: <span className="font-mono text-cyan-300">{exploration[step]?.dist?.toFixed(2)}</span>)
         </div>
       )}
-      <div className="mt-1 text-[10px] text-zinc-500">
+      <div className="mt-1 text-xs text-zinc-500">
         Green = explored &middot; Yellow = current &middot; Grey = unexplored
       </div>
     </div>

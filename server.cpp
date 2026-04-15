@@ -580,10 +580,19 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
     sendResponse(client, 404, "application/json", "{\"error\":\"Not found\"}");
 }
 
-// 35 real Jodhpur intersections with GPS coordinates
-// 18 highly interconnected nodes for optimal algorithm display
-// 22 widespread connected nodes for better layout visibility
+// ── Node Optimization ──
+// Removed 4 nodes that were too close together (<0.6 km apart):
+//   - Sardar Market  (126m from Ghanta Ghar)  → merged into Ghanta Ghar
+//   - Sojati Gate    (149m from Jodhpur Jn)   → merged into Jodhpur Junction
+//   - Jaswant Thada  (424m from Mehrangarh)   → merged into Mehrangarh Fort
+//   - High Court     (609m from Ratanada)     → merged into Ratanada
+// Edges were rewired to merge-target nodes; weights adjusted to preserve
+// approximate real-world distances. Connectivity verified: the graph
+// remains fully connected (every node is reachable from every other).
+//
+// Final graph: 18 nodes, well-spread across Jodhpur.
 static void initJodhpur() {
+    // ── 18 Jodhpur intersections (optimized — removed tightly-clustered nodes) ──
     cityGraph.addIntersection("Mandore",           26.3250, 73.0100);
     cityGraph.addIntersection("Kaylana Lake",      26.3000, 72.9800);
     cityGraph.addIntersection("Banar Road",        26.3100, 73.0400);
@@ -591,15 +600,15 @@ static void initJodhpur() {
     cityGraph.addIntersection("AIIMS Jodhpur",     26.2520, 73.0450);
     cityGraph.addIntersection("Mahamandir",        26.3050, 73.0130);
     cityGraph.addIntersection("Loco Shed",         26.2950, 73.0340);
-    cityGraph.addIntersection("Jaswant Thada",     26.2960, 73.0150);
+    // Jaswant Thada removed — merged into Mehrangarh Fort (424m apart)
     cityGraph.addIntersection("Mehrangarh Fort",   26.2984, 73.0183);
     cityGraph.addIntersection("Ghanta Ghar",       26.2920, 73.0169);
-    cityGraph.addIntersection("Sardar Market",     26.2910, 73.0175);
-    cityGraph.addIntersection("Sojati Gate",       26.2870, 73.0200);
+    // Sardar Market removed — merged into Ghanta Ghar (126m apart)
+    // Sojati Gate   removed — merged into Jodhpur Junction (149m apart)
     cityGraph.addIntersection("Jodhpur Junction",  26.2880, 73.0210);
     cityGraph.addIntersection("Paota",             26.2810, 73.0100);
     cityGraph.addIntersection("Ratanada",          26.2700, 73.0050);
-    cityGraph.addIntersection("High Court",        26.2690, 73.0110);
+    // High Court removed — merged into Ratanada (609m apart)
     cityGraph.addIntersection("MBM Engineering",   26.2730, 73.0220);
     cityGraph.addIntersection("Chopasni Road",     26.2680, 73.0280);
     cityGraph.addIntersection("Kamla Nehru Nagar", 26.2750, 73.0350);
@@ -607,29 +616,37 @@ static void initJodhpur() {
     cityGraph.addIntersection("Pratap Nagar",      26.2600, 73.0200);
     cityGraph.addIntersection("Pal Road",          26.2450, 73.0050);
 
-    // roads
+    // ── Roads (rewired after node merges) ──
+    // Northern cluster
     cityGraph.addRoad("Mandore", "Kaylana Lake", 4.0);
     cityGraph.addRoad("Mandore", "Mahamandir", 2.5);
-    cityGraph.addRoad("Kaylana Lake", "Jaswant Thada", 3.0);
     cityGraph.addRoad("Mahamandir", "Banar Road", 2.0);
     cityGraph.addRoad("Mahamandir", "Loco Shed", 1.8);
     cityGraph.addRoad("Banar Road", "Loco Shed", 1.5);
-    cityGraph.addRoad("Jaswant Thada", "Mehrangarh Fort", 0.5);
+
+    // Fort area (Jaswant Thada merged into Mehrangarh Fort)
+    // Kaylana Lake → Jaswant Thada (3.0) rewired to → Mehrangarh Fort (3.5)
+    cityGraph.addRoad("Kaylana Lake", "Mehrangarh Fort", 3.5);
     cityGraph.addRoad("Mehrangarh Fort", "Mahamandir", 1.5);
+
+    // Old city core (Sardar Market & Sojati Gate merged)
+    // Ghanta Ghar → Mehrangarh Fort (existing 1.2)
     cityGraph.addRoad("Ghanta Ghar", "Mehrangarh Fort", 1.2);
-    cityGraph.addRoad("Ghanta Ghar", "Jaswant Thada", 0.8);
-    cityGraph.addRoad("Ghanta Ghar", "Sardar Market", 0.3);
-    cityGraph.addRoad("Sardar Market", "Sojati Gate", 0.7);
-    cityGraph.addRoad("Sojati Gate", "Jodhpur Junction", 0.5);
+    // Ghanta Ghar → Sardar Market → Sojati Gate → Jodhpur Jn  rewired to:
+    cityGraph.addRoad("Ghanta Ghar", "Jodhpur Junction", 1.2);
     cityGraph.addRoad("Jodhpur Junction", "Paota", 1.2);
+
+    // Southern corridor (High Court merged into Ratanada)
     cityGraph.addRoad("Paota", "Ratanada", 1.5);
-    cityGraph.addRoad("Ratanada", "High Court", 0.5);
-    cityGraph.addRoad("High Court", "MBM Engineering", 0.7);
-    cityGraph.addRoad("High Court", "Pal Road", 1.2);
-    cityGraph.addRoad("MBM Engineering", "Chopasni Road", 0.8);
-    cityGraph.addRoad("Pal Road", "Pratap Nagar", 1.2);
+    // Ratanada → High Court → MBM Engineering  rewired to:
+    cityGraph.addRoad("Ratanada", "MBM Engineering", 1.2);
+    // Ratanada → High Court → Pal Road  rewired to (keep existing Pal Road→Ratanada):
     cityGraph.addRoad("Pal Road", "Ratanada", 1.8);
+    cityGraph.addRoad("Pal Road", "Pratap Nagar", 1.2);
     cityGraph.addRoad("Pal Road", "Pal Village", 1.5);
+
+    // Eastern / AIIMS corridor
+    cityGraph.addRoad("MBM Engineering", "Chopasni Road", 0.8);
     cityGraph.addRoad("Pratap Nagar", "Basni", 1.0);
     cityGraph.addRoad("Basni", "AIIMS Jodhpur", 2.0);
     cityGraph.addRoad("AIIMS Jodhpur", "Chopasni Road", 2.0);

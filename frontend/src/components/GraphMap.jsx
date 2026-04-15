@@ -6,20 +6,24 @@ import MapLegend from './MapLegend';
 import { getNodePosition } from '../data/jodhpurNodes';
 import osrmRoutes from '../data/jodhpurRoutes.json';
 
+/* ── Enhanced edge visibility ──
+ * Weights & opacity increased for clear road rendering against map tiles.
+ * Normal roads use a brighter slate for better contrast on OSM layers. */
 const CONDITION_STYLES = {
-  normal:        { color: '#64748b', weight: 2, dashArray: null,    opacity: 0.35 },
-  light_traffic: { color: '#eab308', weight: 2.5, dashArray: null,  opacity: 0.65 },
-  heavy_traffic: { color: '#f97316', weight: 3, dashArray: null,    opacity: 0.75 },
-  congestion:    { color: '#dc2626', weight: 3.5, dashArray: null,  opacity: 0.8  },
-  accident:      { color: '#ef4444', weight: 4, dashArray: null,    opacity: 0.9  },
-  construction:  { color: '#d97706', weight: 3, dashArray: '8,6',   opacity: 0.75 },
-  closed:        { color: '#71717a', weight: 2, dashArray: '6,8',   opacity: 0.55 },
+  normal:        { color: '#8899aa', weight: 3.5, dashArray: null,    opacity: 0.7  },
+  light_traffic: { color: '#eab308', weight: 4,   dashArray: null,    opacity: 0.8  },
+  heavy_traffic: { color: '#f97316', weight: 4.5, dashArray: null,    opacity: 0.85 },
+  congestion:    { color: '#dc2626', weight: 5,   dashArray: null,    opacity: 0.9  },
+  accident:      { color: '#ef4444', weight: 5.5, dashArray: null,    opacity: 0.95 },
+  construction:  { color: '#d97706', weight: 4.5, dashArray: '8,6',   opacity: 0.85 },
+  closed:        { color: '#71717a', weight: 3,   dashArray: '6,8',   opacity: 0.65 },
 };
 
-// Multi-route styles
-const PRIMARY_STYLE   = { color: '#22d3ee', weight: 5, dashArray: '10,8', opacity: 0.95, className: 'path-animated' };
-const ALT_STYLE       = { color: '#f59e0b', weight: 3.5, dashArray: '8,6', opacity: 0.80 };
-const SECOND_BEST_STYLE = { color: '#a855f7', weight: 2.5, dashArray: '4,6', opacity: 0.65 };
+// Multi-route styles — bolder for clear visibility
+const PRIMARY_STYLE   = { color: '#22d3ee', weight: 7,   dashArray: '10,8', opacity: 0.95, className: 'path-animated' };
+const PRIMARY_GLOW    = { color: '#22d3ee', weight: 14,  dashArray: null,   opacity: 0.18, className: 'path-glow' };
+const ALT_STYLE       = { color: '#f59e0b', weight: 5,   dashArray: '8,6',  opacity: 0.85 };
+const SECOND_BEST_STYLE = { color: '#a855f7', weight: 4, dashArray: '4,6',  opacity: 0.70 };
 
 function makeIconMarker(text, className) {
   return divIcon({
@@ -137,7 +141,7 @@ function GraphMap({ graphData, pathData, altPathData, mode }) {
       <div className="flex h-full min-h-0 w-full items-center justify-center rounded-xl border border-white/10 bg-zinc-950">
         <div className="px-4 text-center">
           <p className="text-base font-bold text-white">Loading map...</p>
-          <p className="mt-2 text-sm font-medium text-zinc-300">Waiting for graph data</p>
+          <p className="mt-2 text-base font-medium text-zinc-300">Waiting for graph data</p>
         </div>
       </div>
     );
@@ -176,7 +180,7 @@ function GraphMap({ graphData, pathData, altPathData, mode }) {
   return (
     <div className="rounded-xl border border-white/[0.08] bg-[#0a0a0e] shadow-[0_0_40px_rgba(0,0,0,0.5)]" style={{display:'flex',flexDirection:'column',height:'100%',minHeight:0,flex:'1 1 0%',overflow:'hidden'}}>
       <div className="flex shrink-0 items-center justify-between border-b border-white/15 bg-zinc-900 px-3 py-2.5">
-        <span className="text-xs font-bold uppercase tracking-widest text-white">
+        <span className="text-sm font-bold uppercase tracking-widest text-white">
           {mode === 'satellite' ? 'Satellite view' : 'Jodhpur city map'}
         </span>
         <div className="flex items-center gap-2">
@@ -184,12 +188,12 @@ function GraphMap({ graphData, pathData, altPathData, mode }) {
             <button
               type="button"
               onClick={() => setShowAllRoads((v) => !v)}
-              className="rounded border border-white/20 bg-black/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-200 hover:bg-black/50"
+              className="rounded border border-white/20 bg-black/30 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-200 hover:bg-black/50"
             >
               {showAllRoads ? 'Focus path' : 'Show all roads'}
             </button>
           )}
-          <span className="font-mono text-xs font-semibold text-zinc-200">
+          <span className="font-mono text-sm font-semibold text-zinc-200">
             {graphData.nodeCount} nodes · {renderedEdges.length} roads
           </span>
         </div>
@@ -218,6 +222,26 @@ function GraphMap({ graphData, pathData, altPathData, mode }) {
           )}
 
           <MapResize />
+
+          {/* Glow layer — rendered FIRST (beneath everything) for primary path edges */}
+          {renderedEdges.map((edge, idx) => {
+            const edgeKey = `${edge.from}-${edge.to}`;
+            if (!primaryEdgeKeys.has(edgeKey)) return null;
+            const polyline = getEdgePolyline(edge);
+            if (!polyline) return null;
+            return (
+              <Polyline
+                key={`glow-${edge.from}-${edge.to}-${idx}`}
+                positions={polyline}
+                pathOptions={{
+                  color: PRIMARY_GLOW.color,
+                  weight: PRIMARY_GLOW.weight,
+                  opacity: PRIMARY_GLOW.opacity,
+                  className: PRIMARY_GLOW.className || undefined,
+                }}
+              />
+            );
+          })}
 
           {/* Render edges — bottom layer: secondBest, then alt, then primary on top */}
           {renderedEdges.map((edge, idx) => {
@@ -290,7 +314,7 @@ function GraphMap({ graphData, pathData, altPathData, mode }) {
                 }}
               >
                 <Tooltip direction="top" offset={[0, -8]} permanent={graphData.nodes.length <= 20}>
-                  <span className="text-xs font-semibold text-zinc-900">{node.name}</span>
+                  <span className="text-sm font-semibold text-zinc-900">{node.name}</span>
                 </Tooltip>
               </CircleMarker>
             );

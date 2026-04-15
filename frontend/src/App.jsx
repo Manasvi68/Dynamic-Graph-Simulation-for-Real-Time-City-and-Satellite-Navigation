@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Map, Route, Zap, Shield, Sparkles, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import GraphMap from './components/GraphMap';
 import SatelliteView from './components/SatelliteView';
+import ModeToggle from './components/ModeToggle';
 import BlockchainPanel from './components/BlockchainPanel';
 import RouteCompare from './components/RouteCompare';
 import ToastContainer from './components/Toast';
@@ -38,7 +39,7 @@ function Section({ icon, title, defaultOpen = true, accent = 'sky', children }) 
         className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left transition-colors hover:bg-white/5"
       >
         {React.cloneElement(icon, { size: 15, className: accentMap[accent] || 'text-sky-400' })}
-        <span className="flex-1 text-xs font-bold uppercase tracking-widest text-white">{title}</span>
+        <span className="flex-1 text-sm font-bold uppercase tracking-widest text-white">{title}</span>
         {open ? <ChevronUp size={14} className="text-zinc-500" /> : <ChevronDown size={14} className="text-zinc-500" />}
       </button>
       {open && <div className="border-t border-white/8 px-3.5 pb-3.5 pt-3 overflow-y-auto min-h-0">{children}</div>}
@@ -64,6 +65,7 @@ function App() {
 
   const [sidebarWidth, setSidebarWidth] = useState(readStoredWidth);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const dragging = useRef(null);
   const prevBlockCount = useRef(0);
@@ -84,6 +86,14 @@ function App() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  const startDrag = (e) => {
+    e.preventDefault();
+    dragging.current = { x0: e.clientX, w0: sidebarWidth };
+    setIsDragging(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
   useEffect(() => {
     const onMove = (e) => {
       if (!dragging.current) return;
@@ -93,6 +103,7 @@ function App() {
     const onUp = () => {
       if (!dragging.current) return;
       dragging.current = null;
+      setIsDragging(false);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       setSidebarWidth((w) => { persist(w); return w; });
@@ -104,14 +115,6 @@ function App() {
       window.removeEventListener('mouseup', onUp);
     };
   }, [persist]);
-
-  const startDrag = (e) => {
-    e.preventDefault();
-    dragging.current = { x0: e.clientX, w0: sidebarWidth };
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  };
-
   useEffect(() => {
     async function loadAll() {
       try {
@@ -304,7 +307,7 @@ function App() {
         <div className="panel-dark max-w-sm px-8 py-7 text-center">
           <div className="mx-auto mb-4 h-9 w-9 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
           <p className="font-semibold text-zinc-100">Loading graph &amp; log...</p>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-200">
+          <p className="mt-2 text-base leading-relaxed text-zinc-200">
             Start the C++ server on <span className="font-mono font-semibold text-white">8080</span>, then refresh.
           </p>
         </div>
@@ -317,49 +320,27 @@ function App() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#050508] text-zinc-100">
       {/* Header */}
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/15 bg-[#0c0c12] px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="flex shrink-0 items-center justify-between border-b border-white/15 bg-[#0c0c12] px-4 py-2.5">
+        <div className="flex flex-1 shrink-0 items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-cyan-600 shadow-lg shadow-sky-900/40">
             <Map size={18} className="text-white" strokeWidth={2.2} />
           </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-sm font-bold tracking-tight text-white sm:text-base">
-              Dynamic City Navigation
-            </h1>
-            <p className="hidden truncate text-xs font-medium leading-snug text-zinc-400 sm:block">
-              Jodhpur · Pathfind · Simulate · Blockchain log
-            </p>
-          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2.5">
-          <div
-            className="flex items-center gap-2 rounded-full border border-white/20 bg-zinc-900 px-2.5 py-1.5"
-            title="City: Jodhpur map. Satellite: orbital links."
-          >
-            <span className={`whitespace-nowrap text-xs font-bold sm:text-sm ${mode === 'city' ? 'text-sky-300' : 'text-zinc-400'}`}>
-              City
-            </span>
-            <button
-              type="button"
-              onClick={handleModeSwitch}
-              disabled={busy}
-              className="relative h-6 w-11 rounded-full bg-zinc-700 transition-colors hover:bg-zinc-600 disabled:opacity-50"
-              aria-label={`Switch to ${mode === 'city' ? 'satellite' : 'city'}`}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-zinc-200 shadow transition-all ${
-                  mode === 'satellite' ? 'left-5' : 'left-0.5'
-                }`}
-              />
-            </button>
-            <span className={`whitespace-nowrap text-xs font-bold sm:text-sm ${mode === 'satellite' ? 'text-sky-300' : 'text-zinc-400'}`}>
-              Sat
-            </span>
-          </div>
+        <div className="hidden flex-1 text-center sm:block">
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-sky-50 drop-shadow-md sm:text-2xl" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            Dynamic City Navigation
+          </h1>
+          <p className="truncate text-sm font-medium leading-snug text-sky-200/60 mt-0.5">
+            Jodhpur · Pathfind · Simulate · Blockchain log
+          </p>
+        </div>
+
+        <div className="flex flex-1 shrink-0 items-center justify-end gap-2.5">
+          <ModeToggle mode={mode} onSwitch={handleModeSwitch} disabled={busy} />
 
           {busy && (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-200 sm:text-sm">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-amber-200 sm:text-base">
               <Sparkles size={14} className="animate-pulse" />
               Busy
             </span>
@@ -388,7 +369,7 @@ function App() {
             <Section icon={<Route />} title="Route" accent="sky">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">From</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-zinc-400">From</label>
                   <select value={fromNode} onChange={(e) => setFromNode(e.target.value)} className="input-dark route-from-select">
                     <option value="">Select...</option>
                     {nodeNames.map((name) => (
@@ -397,7 +378,7 @@ function App() {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">To</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-zinc-400">To</label>
                   <select value={toNode} onChange={(e) => setToNode(e.target.value)} className="input-dark">
                     <option value="">Select...</option>
                     {nodeNames.map((name) => (
@@ -407,8 +388,8 @@ function App() {
                 </div>
               </div>
 
-              <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-                Active Algorithm: <span className="text-emerald-400">{mode === 'city' ? 'A*' : 'Dijkstra'}</span>
+              <div className="mt-2.5 text-sm font-bold uppercase tracking-widest text-zinc-400">
+                Active Algorithm: <span className="text-emerald-400 text-lg sm:text-xl drop-shadow-md">{mode === 'city' ? 'A*' : 'Dijkstra'}</span>
               </div>
 
               <button
@@ -428,7 +409,7 @@ function App() {
                 />
               )}
               {currentRoute && !currentRoute.found && (
-                <p className="mt-3 rounded-md border border-red-400/50 bg-red-950/70 px-3 py-2 text-xs font-semibold text-red-100">
+                <p className="mt-3 rounded-md border border-red-400/50 bg-red-950/70 px-3 py-2 text-sm font-semibold text-red-100">
                   No path found — try other places or check for closed roads.
                 </p>
               )}
@@ -436,7 +417,7 @@ function App() {
 
             {/* ── Simulation Section ── */}
             <Section icon={<Zap />} title="Simulation" accent="amber">
-              <p className="mb-3 text-xs font-medium leading-snug text-zinc-400">
+              <p className="mb-3 text-sm font-medium leading-snug text-zinc-400">
                 {mode === 'city'
                   ? 'Each step: random traffic or road closure. Paths auto-update.'
                   : 'Each step: satellites move; links can appear or disappear.'}
@@ -445,7 +426,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => setAutoSim((v) => !v)}
-                  className={`flex-1 rounded-lg border py-2 text-xs font-bold transition-colors ${
+                  className={`flex-1 rounded-lg border py-2 text-sm font-bold transition-colors ${
                     autoSim
                       ? 'border-emerald-500/50 bg-emerald-950/50 text-emerald-400 hover:bg-emerald-900/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
                       : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
@@ -458,7 +439,7 @@ function App() {
                   onClick={handleSimStep}
                   disabled={busy || autoSim}
                   title="Manual step is disabled while auto-sim is running"
-                  className="flex-1 rounded-lg border border-amber-300/40 bg-gradient-to-b from-amber-500 to-amber-700 py-2 text-xs font-bold text-white shadow-lg shadow-amber-950/60 hover:brightness-110 disabled:opacity-50"
+                  className="flex-1 rounded-lg border border-amber-300/40 bg-gradient-to-b from-amber-500 to-amber-700 py-2 text-sm font-bold text-white shadow-lg shadow-amber-950/60 hover:brightness-110 disabled:opacity-50"
                 >
                   ⚡ Step Once
                 </button>
@@ -466,15 +447,15 @@ function App() {
 
               {/* Edit road */}
               <div className="mt-3 border-t border-white/8 pt-3">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">Edit Road</p>
+                <p className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">Edit Road</p>
                 <div className="grid grid-cols-2 gap-1.5">
-                  <select value={editFrom} onChange={(e) => setEditFrom(e.target.value)} className="input-dark text-xs">
+                  <select value={editFrom} onChange={(e) => setEditFrom(e.target.value)} className="input-dark text-sm">
                     <option value="">From</option>
                     {nodeNames.map((name) => (
                       <option key={name} value={name}>{name}</option>
                     ))}
                   </select>
-                  <select value={editTo} onChange={(e) => setEditTo(e.target.value)} className="input-dark text-xs">
+                  <select value={editTo} onChange={(e) => setEditTo(e.target.value)} className="input-dark text-sm">
                     <option value="">To</option>
                     {nodeNames.map((name) => (
                       <option key={name} value={name}>{name}</option>
@@ -487,7 +468,7 @@ function App() {
                     placeholder="Weight (km)"
                     value={editWeight}
                     onChange={(e) => setEditWeight(e.target.value)}
-                    className="input-dark min-w-0 flex-1 text-xs"
+                    className="input-dark min-w-0 flex-1 text-sm"
                     min="0.1"
                     step="0.1"
                   />
@@ -495,7 +476,7 @@ function App() {
                     type="button"
                     onClick={handleUpdateRoad}
                     disabled={!editFrom || !editTo || !editWeight || busy}
-                    className="shrink-0 rounded-lg border border-violet-300/40 bg-violet-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-500 disabled:opacity-45"
+                    className="shrink-0 rounded-lg border border-violet-300/40 bg-violet-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-violet-500 disabled:opacity-45"
                   >
                     Set
                   </button>
@@ -504,7 +485,7 @@ function App() {
                   type="button"
                   onClick={handleCloseRoad}
                   disabled={!editFrom || !editTo || busy}
-                  className="mt-1.5 w-full rounded-lg border border-red-400/45 bg-red-950/80 py-1.5 text-xs font-bold text-red-100 hover:bg-red-900/70 disabled:opacity-45"
+                  className="mt-1.5 w-full rounded-lg border border-red-400/45 bg-red-950/80 py-1.5 text-sm font-bold text-red-100 hover:bg-red-900/70 disabled:opacity-45"
                 >
                   Remove road
                 </button>
@@ -523,7 +504,7 @@ function App() {
         {/* Drag handle */}
         {sidebarOpen && (
           <div
-            className="drag-handle hidden sm:block"
+            className="hidden sm:flex w-4 cursor-col-resize shrink-0 items-center justify-center z-50 bg-[#0c0c12]/50 hover:bg-white/10 active:bg-white/20 transition-colors"
             onMouseDown={startDrag}
             role="separator"
             aria-orientation="vertical"
@@ -540,11 +521,23 @@ function App() {
                 return next;
               });
             }}
-          />
+          >
+            <div className="h-10 w-1 rounded-full bg-zinc-600 pointer-events-none"></div>
+          </div>
         )}
 
         {/* Map */}
-        <main style={{display:'flex',flexDirection:'column',flex:'1 1 0%',minHeight:0,minWidth:0,height:'100%'}}>
+        <main
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            flex: '1 1 0%',
+            minHeight: 0,
+            minWidth: 0,
+            height: '100%',
+            pointerEvents: dragging.current ? 'none' : 'auto'
+          }}
+        >
           {mode === 'satellite'
             ? <SatelliteView graphData={graphData} pathData={currentRoute} />
             : <GraphMap
