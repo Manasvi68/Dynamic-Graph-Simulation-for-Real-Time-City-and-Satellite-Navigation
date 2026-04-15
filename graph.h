@@ -7,59 +7,55 @@
 
 using namespace std;
 
-// represents a single road from one intersection to another
 struct Edge {
-    int to;         
-    double weight;  
+    int to;
+    double weight;
+    string condition;  // normal, light_traffic, heavy_traffic, accident, closed, congestion, construction
+    double baseWeight; // original weight before traffic multipliers
+
+    Edge() : to(0), weight(0), condition("normal"), baseWeight(0) {}
+};
+
+struct NodeInfo {
+    int id;
+    string name;
+    double lat;
+    double lng;
 };
 
 class CityGraph {
 private:
-    int nodeCount;  // how many intersections we have
-
-    // maps node id -> list of outgoing edges
+    int nodeCount;
     unordered_map<int, vector<Edge>> adjacencyList;
-
-    // two-way lookup between node ids and names
     unordered_map<int, string> idToName;
     unordered_map<string, int> nameToId;
+    unordered_map<int, double> nodeLat;
+    unordered_map<int, double> nodeLng;
 
 public:
     CityGraph();
 
-    // add a new intersection
-    void addIntersection(string name);
-
-    // add a road between two intersections, bidirectional hai
+    void addIntersection(string name, double lat = 0.0, double lng = 0.0);
     void addRoad(string from, string to, double weight, bool oneWay = false);
-
-    // remove a road between two intersections
     void removeRoad(string from, string to);
-
-    // change the weight of an existing road
     void updateRoadWeight(string from, string to, double newWeight);
+    void setRoadCondition(string from, string to, string condition);
+    string getRoadCondition(string from, string to) const;
 
-    // get all roads leaving a given node
     vector<Edge> getNeighbors(int nodeId) const;
-
-    // lookup helpers
     int getNodeId(string name) const;
     string getNodeName(int id) const;
+    double getNodeLat(int id) const;
+    double getNodeLng(int id) const;
     bool hasIntersection(string name) const;
     bool hasRoad(string from, string to) const;
     int getNodeCount() const;
 
-    // display the graph in console
     void printGraph() const;
-
-    // save/load the entire city map as JSON
     void saveToJson(string filename) const;
     void loadFromJson(string filename);
-
-    // wipe everything 
     void clear();
 
-    // give read access to internal structures 
     const unordered_map<int, vector<Edge>>& getAdjacencyList() const;
     const unordered_map<int, string>& getNameMap() const;
     const unordered_map<string, int>& getIdMap() const;

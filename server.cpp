@@ -6,7 +6,6 @@
 #include "satellite_world.h"
 #include "json.hpp"
 
-// Winsock2 for Windows networking (must come before other Windows headers)
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
@@ -22,24 +21,22 @@
 using namespace std;
 using json = nlohmann::json;
 
-// ── globals ──
-// (in a real project these would be in a class, but for a student project globals are fine)
 CityGraph cityGraph;
 Blockchain blockchain;
 TrafficSimulator* trafficSim = nullptr;
 SatelliteWorld* satWorld = nullptr;
-string currentMode = "city";  // "city" or "satellite"
+string currentMode = "city";
 
 const int PORT = 8080;
 const string STATIC_DIR_REACT = "frontend/dist";
 const string STATIC_DIR_FALLBACK = "web";
+const string GRAPH_VERSION = "jodhpur_v1";
 
-// forward declarations (implemented further down)
 struct HttpRequest {
-    string method;   // GET, POST, etc.
-    string path;     // /api/graph, /index.html, etc.
-    string query;    // everything after ? in the URL
-    string body;     // POST body
+    string method;
+    string path;
+    string query;
+    string body;
 };
 
 HttpRequest parseRequest(const string& raw);
@@ -48,7 +45,6 @@ void sendJson(SOCKET client, const json& j);
 void serveStaticFile(SOCKET client, const string& urlPath);
 void handleApiRequest(SOCKET client, const HttpRequest& req);
 
-// ── parse raw HTTP request into our struct ──
 HttpRequest parseRequest(const string& raw) {
     HttpRequest req;
     req.method = "";
@@ -56,18 +52,14 @@ HttpRequest parseRequest(const string& raw) {
     req.query = "";
     req.body = "";
 
-    // first line looks like: "GET /api/graph?from=Home HTTP/1.1\r\n"
     size_t firstSpace = raw.find(' ');
     if (firstSpace == string::npos) return req;
-
     req.method = raw.substr(0, firstSpace);
 
     size_t secondSpace = raw.find(' ', firstSpace + 1);
     if (secondSpace == string::npos) return req;
 
     string fullPath = raw.substr(firstSpace + 1, secondSpace - firstSpace - 1);
-
-    // split path and query string at '?'
     size_t questionMark = fullPath.find('?');
     if (questionMark != string::npos) {
         req.path = fullPath.substr(0, questionMark);
@@ -76,35 +68,27 @@ HttpRequest parseRequest(const string& raw) {
         req.path = fullPath;
     }
 
-    // extract body (everything after the blank line \r\n\r\n)
     size_t bodyStart = raw.find("\r\n\r\n");
     if (bodyStart != string::npos) {
         req.body = raw.substr(bodyStart + 4);
     }
-
     return req;
 }
 
-// helper to extract a query parameter value
-// e.g., getQueryParam("from=Home&to=Market&algo=dijkstra", "from") returns "Home"
 static string getQueryParam(const string& query, const string& key) {
     string search = key + "=";
     size_t start = query.find(search);
     if (start == string::npos) return "";
-
     start += search.length();
     size_t end = query.find('&', start);
-    if (end == string::npos) {
-        return query.substr(start);
-    }
+    if (end == string::npos) return query.substr(start);
     return query.substr(start, end - start);
 }
 
-// URL decode (replace %20 with space, + with space, etc.)
 static string urlDecode(const string& str) {
     string result;
-    for (int i = 0; i < str.length(); i++) {
-        if (str[i] == '%' && i + 2 < str.length()) {
+    for (int i = 0; i < (int)str.length(); i++) {
+        if (str[i] == '%' && i + 2 < (int)str.length()) {
             string hex = str.substr(i + 1, 2);
             char c = (char)strtol(hex.c_str(), nullptr, 16);
             result += c;
@@ -118,7 +102,6 @@ static string urlDecode(const string& str) {
     return result;
 }
 
-// ── send an HTTP response ──
 void sendResponse(SOCKET client, int statusCode, const string& contentType, const string& body) {
     string statusText = "OK";
     if (statusCode == 404) statusText = "Not Found";
@@ -129,7 +112,7 @@ void sendResponse(SOCKET client, int statusCode, const string& contentType, cons
     response << "HTTP/1.1 " << statusCode << " " << statusText << "\r\n";
     response << "Content-Type: " << contentType << "\r\n";
     response << "Content-Length: " << body.size() << "\r\n";
-    response << "Access-Control-Allow-Origin: *\r\n";            // CORS — let frontend on different port access us
+    response << "Access-Control-Allow-Origin: *\r\n";
     response << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
     response << "Access-Control-Allow-Headers: Content-Type\r\n";
     response << "Connection: close\r\n";
@@ -140,12 +123,10 @@ void sendResponse(SOCKET client, int statusCode, const string& contentType, cons
     ::send(client, responseStr.c_str(), static_cast<int>(responseStr.size()), 0);
 }
 
-// shortcut to send a JSON response
 void sendJson(SOCKET client, const json& j) {
     sendResponse(client, 200, "application/json", j.dump(2));
 }
 
-// ── guess content type from file extension ──
 static string guessContentType(const string& path) {
     if (path.find(".html") != string::npos) return "text/html";
     if (path.find(".css") != string::npos) return "text/css";
@@ -158,20 +139,15 @@ static string guessContentType(const string& path) {
     return "text/plain";
 }
 
-// ── serve a static file from disk ──
 void serveStaticFile(SOCKET client, const string& urlPath) {
-    // figure out which directory to serve from
     string staticDir = STATIC_DIR_REACT;
-
-    // check if React build exists
     ifstream testFile(staticDir + "/index.html");
     if (!testFile.is_open()) {
-        staticDir = STATIC_DIR_FALLBACK;  // fall back to web/ folder
+        staticDir = STATIC_DIR_FALLBACK;
     } else {
         testFile.close();
     }
 
-    // map URL path to file path
     string filePath = staticDir;
     if (urlPath == "/" || urlPath.empty()) {
         filePath += "/index.html";
@@ -179,11 +155,8 @@ void serveStaticFile(SOCKET client, const string& urlPath) {
         filePath += urlPath;
     }
 
-    // try to open the file
     ifstream file(filePath, ios::binary);
     if (!file.is_open()) {
-        // for SPA routing: if file not found, serve index.html
-        // (React Router handles the routing client-side)
         filePath = staticDir + "/index.html";
         file.open(filePath, ios::binary);
         if (!file.is_open()) {
@@ -192,19 +165,15 @@ void serveStaticFile(SOCKET client, const string& urlPath) {
         }
     }
 
-    // read entire file into string
     ostringstream contents;
     contents << file.rdbuf();
     file.close();
-
-    string contentType = guessContentType(filePath);
-    sendResponse(client, 200, contentType, contents.str());
+    sendResponse(client, 200, guessContentType(filePath), contents.str());
 }
 
-// ── handle all /api/ requests ──
 void handleApiRequest(SOCKET client, const HttpRequest& req) {
 
-    // ── GET /api/graph ──
+    // GET /api/graph
     if (req.method == "GET" && req.path == "/api/graph") {
         json j;
 
@@ -218,41 +187,56 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         j["mode"] = currentMode;
         j["nodeCount"] = activeGraph->getNodeCount();
 
-        // build nodes array
         json nodesArr = json::array();
         const auto& nameMap = activeGraph->getNameMap();
         for (auto it = nameMap.begin(); it != nameMap.end(); it++) {
             json nodeObj;
             nodeObj["id"] = it->first;
             nodeObj["name"] = it->second;
+            nodeObj["lat"] = activeGraph->getNodeLat(it->first);
+            nodeObj["lng"] = activeGraph->getNodeLng(it->first);
 
-            // include positions if in satellite mode
             if (currentMode == "satellite" && satWorld != nullptr) {
                 auto px = satWorld->getPositionsX();
                 auto py = satWorld->getPositionsY();
-                if (it->first < px.size()) {
+                const auto& allBodies = satWorld->getBodies();
+                if (it->first < (int)px.size()) {
                     nodeObj["posX"] = px[it->first];
                     nodeObj["posY"] = py[it->first];
                 }
+                if (it->first < (int)allBodies.size()) {
+                    json orbitParams;
+                    orbitParams["semiMajor"] = allBodies[it->first].semiMajor;
+                    orbitParams["eccentricity"] = allBodies[it->first].eccentricity;
+                    orbitParams["inclination"] = allBodies[it->first].inclination;
+                    orbitParams["angle"] = allBodies[it->first].angle;
+                    orbitParams["speed"] = allBodies[it->first].speed;
+                    orbitParams["centerX"] = allBodies[it->first].centerX;
+                    orbitParams["centerY"] = allBodies[it->first].centerY;
+                    nodeObj["orbitParams"] = orbitParams;
+                }
             }
-
             nodesArr.push_back(nodeObj);
         }
         j["nodes"] = nodesArr;
 
-        // build edges array
         json edgesArr = json::array();
         const auto& adjList = activeGraph->getAdjacencyList();
         for (auto it = adjList.begin(); it != adjList.end(); it++) {
             int fromId = it->first;
             const auto& edges = it->second;
-            for (int i = 0; i < edges.size(); i++) {
+            for (int i = 0; i < (int)edges.size(); i++) {
                 json edgeObj;
                 edgeObj["from"] = fromId;
                 edgeObj["fromName"] = activeGraph->getNodeName(fromId);
                 edgeObj["to"] = edges[i].to;
                 edgeObj["toName"] = activeGraph->getNodeName(edges[i].to);
                 edgeObj["weight"] = edges[i].weight;
+                edgeObj["baseWeight"] = edges[i].baseWeight;
+                edgeObj["condition"] = edges[i].condition;
+                if (currentMode == "satellite") {
+                    edgeObj["signalDelay"] = edges[i].weight / 50.0;
+                }
                 edgesArr.push_back(edgeObj);
             }
         }
@@ -262,31 +246,28 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         return;
     }
 
-    // ── GET /api/blockchain ──
+    // GET /api/blockchain
     if (req.method == "GET" && req.path == "/api/blockchain") {
         json j = json::array();
         const auto& chain = blockchain.getChain();
-        for (int i = 0; i < chain.size(); i++) {
+        for (int i = 0; i < (int)chain.size(); i++) {
             json blockObj;
             blockObj["index"] = chain[i].index;
             blockObj["hash"] = chain[i].hash;
             blockObj["previousHash"] = chain[i].previousHash;
             blockObj["timestamp"] = chain[i].timestamp;
-
-            // try to parse the data field as JSON for cleaner output
             try {
                 blockObj["data"] = json::parse(chain[i].data);
             } catch (...) {
-                blockObj["data"] = chain[i].data;  // genesis block has plain string
+                blockObj["data"] = chain[i].data;
             }
-
             j.push_back(blockObj);
         }
         sendJson(client, j);
         return;
     }
 
-    // ── GET /api/mode ──
+    // GET /api/mode
     if (req.method == "GET" && req.path == "/api/mode") {
         json j;
         j["mode"] = currentMode;
@@ -294,7 +275,7 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         return;
     }
 
-        // ── GET /api/path?from=X&to=Y&algo=dijkstra|astar ──
+    // GET /api/path
     if (req.method == "GET" && req.path == "/api/path") {
         string fromName = urlDecode(getQueryParam(req.query, "from"));
         string toName = urlDecode(getQueryParam(req.query, "to"));
@@ -304,8 +285,7 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
             sendResponse(client, 400, "application/json", "{\"error\":\"Missing from or to parameter\"}");
             return;
         }
-
-        if (algo.empty()) algo = "dijkstra";  // default
+        if (algo.empty()) algo = "dijkstra";
 
         CityGraph* activeGraph;
         if (currentMode == "satellite" && satWorld != nullptr) {
@@ -317,7 +297,6 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         PathResult result;
         if (algo == "astar") {
             if (currentMode == "satellite" && satWorld != nullptr) {
-                // use Euclidean heuristic with real positions
                 result = runAstar(*activeGraph, fromName, toName,
                                   satWorld->getPositionsX(), satWorld->getPositionsY());
             } else {
@@ -334,7 +313,7 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         j["algorithm"] = algo;
 
         json pathArr = json::array();
-        for (int i = 0; i < result.path.size(); i++) {
+        for (int i = 0; i < (int)result.path.size(); i++) {
             json step;
             step["id"] = result.path[i];
             step["name"] = activeGraph->getNodeName(result.path[i]);
@@ -342,11 +321,71 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         }
         j["path"] = pathArr;
 
+        json explorationArr = json::array();
+        for (int i = 0; i < (int)result.explorationOrder.size(); i++) {
+            json eo;
+            eo["id"] = result.explorationOrder[i];
+            eo["name"] = activeGraph->getNodeName(result.explorationOrder[i]);
+            eo["dist"] = result.distAtExploration[i];
+            explorationArr.push_back(eo);
+        }
+        j["explorationOrder"] = explorationArr;
+
+        // Compute a simple "second best" route by blocking each edge in the chosen path once.
+        if (result.found && result.path.size() >= 2) {
+            PathResult secondBest;
+            secondBest.found = false;
+            secondBest.totalCost = 0;
+            secondBest.nodesExplored = 0;
+
+            for (int i = 0; i < (int)result.path.size() - 1; i++) {
+                CityGraph variant = *activeGraph;
+                int a = result.path[i];
+                int b = result.path[i + 1];
+                string aName = activeGraph->getNodeName(a);
+                string bName = activeGraph->getNodeName(b);
+                variant.removeRoad(aName, bName);
+
+                PathResult alt;
+                if (algo == "astar") {
+                    if (currentMode == "satellite" && satWorld != nullptr) {
+                        alt = runAstar(variant, fromName, toName, satWorld->getPositionsX(), satWorld->getPositionsY());
+                    } else {
+                        alt = runAstar(variant, fromName, toName);
+                    }
+                } else {
+                    alt = runDijkstra(variant, fromName, toName);
+                }
+
+                if (alt.found && (!secondBest.found || alt.totalCost < secondBest.totalCost)) {
+                    secondBest = alt;
+                }
+            }
+
+            if (secondBest.found) {
+                json secondPath = json::array();
+                for (int i = 0; i < (int)secondBest.path.size(); i++) {
+                    json step;
+                    step["id"] = secondBest.path[i];
+                    step["name"] = activeGraph->getNodeName(secondBest.path[i]);
+                    secondPath.push_back(step);
+                }
+                j["secondBest"] = {
+                    {"found", true},
+                    {"totalCost", secondBest.totalCost},
+                    {"nodesExplored", secondBest.nodesExplored},
+                    {"path", secondPath}
+                };
+            } else {
+                j["secondBest"] = {{"found", false}};
+            }
+        }
+
         sendJson(client, j);
         return;
     }
 
-        // ── POST /api/sim/step ──
+    // POST /api/sim/step
     if (req.method == "POST" && req.path == "/api/sim/step") {
         if (currentMode == "satellite" && satWorld != nullptr) {
             satWorld->orbitStep();
@@ -367,12 +406,11 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         return;
     }
 
-    // ── POST /api/road/update ──
+    // POST /api/road/update
     if (req.method == "POST" && req.path == "/api/road/update") {
         json body;
-        try {
-            body = json::parse(req.body);
-        } catch (...) {
+        try { body = json::parse(req.body); }
+        catch (...) {
             sendResponse(client, 400, "application/json", "{\"error\":\"Invalid JSON body\"}");
             return;
         }
@@ -389,12 +427,11 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         CityGraph* activeGraph = (currentMode == "satellite" && satWorld)
                                   ? &(satWorld->getGraph()) : &cityGraph;
 
-        // find old weight for the event
         double oldWeight = 0;
         int fromId = activeGraph->getNodeId(from);
         if (fromId != -1) {
             vector<Edge> neighbors = activeGraph->getNeighbors(fromId);
-            for (int i = 0; i < neighbors.size(); i++) {
+            for (int i = 0; i < (int)neighbors.size(); i++) {
                 if (neighbors[i].to == activeGraph->getNodeId(to)) {
                     oldWeight = neighbors[i].weight;
                     break;
@@ -404,7 +441,6 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
 
         activeGraph->updateRoadWeight(from, to, weight);
 
-        // log to blockchain
         NetworkEvent event;
         event.type = "ROAD_UPDATE";
         event.fromNode = from;
@@ -423,12 +459,11 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         return;
     }
 
-    // ── POST /api/road/close ──
+    // POST /api/road/close
     if (req.method == "POST" && req.path == "/api/road/close") {
         json body;
-        try {
-            body = json::parse(req.body);
-        } catch (...) {
+        try { body = json::parse(req.body); }
+        catch (...) {
             sendResponse(client, 400, "application/json", "{\"error\":\"Invalid JSON body\"}");
             return;
         }
@@ -439,12 +474,11 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         CityGraph* activeGraph = (currentMode == "satellite" && satWorld)
                                   ? &(satWorld->getGraph()) : &cityGraph;
 
-        // find old weight
         double oldWeight = 0;
         int fromId = activeGraph->getNodeId(from);
         if (fromId != -1) {
             vector<Edge> neighbors = activeGraph->getNeighbors(fromId);
-            for (int i = 0; i < neighbors.size(); i++) {
+            for (int i = 0; i < (int)neighbors.size(); i++) {
                 if (neighbors[i].to == activeGraph->getNodeId(to)) {
                     oldWeight = neighbors[i].weight;
                     break;
@@ -472,12 +506,36 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         return;
     }
 
-    // ── POST /api/mode ──
+    // POST /api/road/condition
+    if (req.method == "POST" && req.path == "/api/road/condition") {
+        json body;
+        try { body = json::parse(req.body); }
+        catch (...) {
+            sendResponse(client, 400, "application/json", "{\"error\":\"Invalid JSON body\"}");
+            return;
+        }
+
+        string from = body.value("from", "");
+        string to = body.value("to", "");
+        string condition = body.value("condition", "normal");
+
+        CityGraph* activeGraph = (currentMode == "satellite" && satWorld)
+                                  ? &(satWorld->getGraph()) : &cityGraph;
+
+        activeGraph->setRoadCondition(from, to, condition);
+        cityGraph.saveToJson("city_graph.json");
+
+        json j;
+        j["status"] = "ok";
+        sendJson(client, j);
+        return;
+    }
+
+    // POST /api/mode
     if (req.method == "POST" && req.path == "/api/mode") {
         json body;
-        try {
-            body = json::parse(req.body);
-        } catch (...) {
+        try { body = json::parse(req.body); }
+        catch (...) {
             sendResponse(client, 400, "application/json", "{\"error\":\"Invalid JSON\"}");
             return;
         }
@@ -486,20 +544,19 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
 
         if (newMode == "satellite") {
             if (satWorld == nullptr) {
-                satWorld = new SatelliteWorld(&blockchain, 15.0);
-                satWorld->addBody("Sat-Alpha",   0,  0, 10, 0.0, 0.2);
-                satWorld->addBody("Sat-Beta",    0,  0, 12, 1.0, 0.15);
-                satWorld->addBody("Sat-Gamma",   5,  5,  8, 2.0, 0.25);
-                satWorld->addBody("Sat-Delta",  -5,  0, 15, 0.5, 0.1);
-                satWorld->addBody("Sat-Epsilon", 0, -5,  9, 3.0, 0.3);
-                satWorld->orbitStep();  // initial topology build
+                satWorld = new SatelliteWorld(&blockchain, 18.0);
+                satWorld->addBody("Sat-Alpha",   0, 0, 10, 0.0,  0.15, 0.2,  0.0);
+                satWorld->addBody("Sat-Beta",    0, 0, 13, 1.0,  0.12, 0.3,  0.4);
+                satWorld->addBody("Sat-Gamma",   2, 2,  8, 2.0,  0.20, 0.15, 0.8);
+                satWorld->addBody("Sat-Delta",  -2, 0, 15, 0.5,  0.08, 0.25, 1.2);
+                satWorld->addBody("Sat-Epsilon", 0,-2, 11, 3.0,  0.18, 0.1,  2.0);
+                satWorld->orbitStep();
             }
             currentMode = "satellite";
         } else {
             currentMode = "city";
         }
 
-        // save mode preference
         json modeJson;
         modeJson["mode"] = currentMode;
         ofstream modeFile("app_mode.json");
@@ -515,60 +572,108 @@ void handleApiRequest(SOCKET client, const HttpRequest& req) {
         return;
     }
 
-    // ── OPTIONS (CORS preflight) ──
     if (req.method == "OPTIONS") {
         sendResponse(client, 200, "text/plain", "");
         return;
     }
 
-    // ── unknown API route ──
     sendResponse(client, 404, "application/json", "{\"error\":\"Not found\"}");
 }
 
-// ── initialize the default city graph ──
-static void initDefaultCity() {
-    cityGraph.addIntersection("Connaught Place");
-    cityGraph.addIntersection("Chandni Chowk");
-    cityGraph.addIntersection("Karol Bagh");
-    cityGraph.addIntersection("Saket");
-    cityGraph.addIntersection("Dwarka");
-    cityGraph.addIntersection("Nehru Place");
-    cityGraph.addIntersection("Lajpat Nagar");
-    cityGraph.addIntersection("Hauz Khas");
-    cityGraph.addIntersection("Rohini");
-    cityGraph.addIntersection("Janakpuri");
+// 35 real Jodhpur intersections with GPS coordinates
+// 18 highly interconnected nodes for optimal algorithm display
+// 22 widespread connected nodes for better layout visibility
+static void initJodhpur() {
+    cityGraph.addIntersection("Mandore",           26.3250, 73.0100);
+    cityGraph.addIntersection("Kaylana Lake",      26.3000, 72.9800);
+    cityGraph.addIntersection("Banar Road",        26.3100, 73.0400);
+    cityGraph.addIntersection("Pal Village",       26.2350, 73.0000);
+    cityGraph.addIntersection("AIIMS Jodhpur",     26.2520, 73.0450);
+    cityGraph.addIntersection("Mahamandir",        26.3050, 73.0130);
+    cityGraph.addIntersection("Loco Shed",         26.2950, 73.0340);
+    cityGraph.addIntersection("Jaswant Thada",     26.2960, 73.0150);
+    cityGraph.addIntersection("Mehrangarh Fort",   26.2984, 73.0183);
+    cityGraph.addIntersection("Ghanta Ghar",       26.2920, 73.0169);
+    cityGraph.addIntersection("Sardar Market",     26.2910, 73.0175);
+    cityGraph.addIntersection("Sojati Gate",       26.2870, 73.0200);
+    cityGraph.addIntersection("Jodhpur Junction",  26.2880, 73.0210);
+    cityGraph.addIntersection("Paota",             26.2810, 73.0100);
+    cityGraph.addIntersection("Ratanada",          26.2700, 73.0050);
+    cityGraph.addIntersection("High Court",        26.2690, 73.0110);
+    cityGraph.addIntersection("MBM Engineering",   26.2730, 73.0220);
+    cityGraph.addIntersection("Chopasni Road",     26.2680, 73.0280);
+    cityGraph.addIntersection("Kamla Nehru Nagar", 26.2750, 73.0350);
+    cityGraph.addIntersection("Basni",             26.2550, 73.0300);
+    cityGraph.addIntersection("Pratap Nagar",      26.2600, 73.0200);
+    cityGraph.addIntersection("Pal Road",          26.2450, 73.0050);
 
-    cityGraph.addRoad("Connaught Place", "Chandni Chowk", 4.0);
-    cityGraph.addRoad("Connaught Place", "Karol Bagh", 3.5);
-    cityGraph.addRoad("Connaught Place", "Nehru Place", 6.0);
-    cityGraph.addRoad("Chandni Chowk", "Rohini", 12.0);
-    cityGraph.addRoad("Karol Bagh", "Janakpuri", 8.0);
-    cityGraph.addRoad("Karol Bagh", "Dwarka", 14.0);
-    cityGraph.addRoad("Saket", "Hauz Khas", 3.0);
-    cityGraph.addRoad("Saket", "Nehru Place", 5.0);
-    cityGraph.addRoad("Nehru Place", "Lajpat Nagar", 3.0);
-    cityGraph.addRoad("Lajpat Nagar", "Hauz Khas", 4.0);
-    cityGraph.addRoad("Hauz Khas", "Dwarka", 10.0);
-    cityGraph.addRoad("Dwarka", "Janakpuri", 5.0);
-    cityGraph.addRoad("Rohini", "Janakpuri", 9.0);
-    cityGraph.addRoad("Connaught Place", "Lajpat Nagar", 7.0);
+    // roads
+    cityGraph.addRoad("Mandore", "Kaylana Lake", 4.0);
+    cityGraph.addRoad("Mandore", "Mahamandir", 2.5);
+    cityGraph.addRoad("Kaylana Lake", "Jaswant Thada", 3.0);
+    cityGraph.addRoad("Mahamandir", "Banar Road", 2.0);
+    cityGraph.addRoad("Mahamandir", "Loco Shed", 1.8);
+    cityGraph.addRoad("Banar Road", "Loco Shed", 1.5);
+    cityGraph.addRoad("Jaswant Thada", "Mehrangarh Fort", 0.5);
+    cityGraph.addRoad("Mehrangarh Fort", "Mahamandir", 1.5);
+    cityGraph.addRoad("Ghanta Ghar", "Mehrangarh Fort", 1.2);
+    cityGraph.addRoad("Ghanta Ghar", "Jaswant Thada", 0.8);
+    cityGraph.addRoad("Ghanta Ghar", "Sardar Market", 0.3);
+    cityGraph.addRoad("Sardar Market", "Sojati Gate", 0.7);
+    cityGraph.addRoad("Sojati Gate", "Jodhpur Junction", 0.5);
+    cityGraph.addRoad("Jodhpur Junction", "Paota", 1.2);
+    cityGraph.addRoad("Paota", "Ratanada", 1.5);
+    cityGraph.addRoad("Ratanada", "High Court", 0.5);
+    cityGraph.addRoad("High Court", "MBM Engineering", 0.7);
+    cityGraph.addRoad("High Court", "Pal Road", 1.2);
+    cityGraph.addRoad("MBM Engineering", "Chopasni Road", 0.8);
+    cityGraph.addRoad("Pal Road", "Pratap Nagar", 1.2);
+    cityGraph.addRoad("Pal Road", "Ratanada", 1.8);
+    cityGraph.addRoad("Pal Road", "Pal Village", 1.5);
+    cityGraph.addRoad("Pratap Nagar", "Basni", 1.0);
+    cityGraph.addRoad("Basni", "AIIMS Jodhpur", 2.0);
+    cityGraph.addRoad("AIIMS Jodhpur", "Chopasni Road", 2.0);
+    cityGraph.addRoad("Chopasni Road", "Kamla Nehru Nagar", 0.8);
+    cityGraph.addRoad("Kamla Nehru Nagar", "AIIMS Jodhpur", 1.5);
+    cityGraph.addRoad("Chopasni Road", "Basni", 1.5);
 }
 
 int main() {
     cout << "=== DSA Project Server ===" << endl;
 
-    // try to load saved state, or create default city
+    // version-check: if saved graph is stale (old Delhi data), discard it
+    bool loadedFromFile = false;
     ifstream cityFile("city_graph.json");
     if (cityFile.is_open()) {
-        cityFile.close();
-        cityGraph.loadFromJson("city_graph.json");
-        cout << "Loaded city graph from file." << endl;
-    } else {
-        initDefaultCity();
-        cout << "Created default city graph." << endl;
+        try {
+            json saved;
+            cityFile >> saved;
+            cityFile.close();
+            // check if saved graph has Jodhpur nodes
+            bool isJodhpur = false;
+            if (saved.contains("nodes")) {
+                for (auto& n : saved["nodes"]) {
+                    if (n.value("name", "") == "Ghanta Ghar") { isJodhpur = true; break; }
+                }
+            }
+            if (isJodhpur) {
+                cityGraph.loadFromJson("city_graph.json");
+                loadedFromFile = true;
+                cout << "Loaded Jodhpur graph from file." << endl;
+            } else {
+                cout << "Old graph detected (not Jodhpur), starting fresh." << endl;
+            }
+        } catch (...) {
+            cout << "Failed to parse city_graph.json, starting fresh." << endl;
+        }
     }
 
-    // load blockchain if exists
+    if (!loadedFromFile) {
+        initJodhpur();
+        cityGraph.saveToJson("city_graph.json");
+        cout << "Created Jodhpur city graph (" << cityGraph.getNodeCount() << " nodes)." << endl;
+    }
+
     ifstream chainFile("blockchain.json");
     if (chainFile.is_open()) {
         chainFile.close();
@@ -576,7 +681,6 @@ int main() {
         cout << "Loaded blockchain from file." << endl;
     }
 
-    // load mode preference
     ifstream modeFile("app_mode.json");
     if (modeFile.is_open()) {
         json modeJson;
@@ -587,7 +691,6 @@ int main() {
         }
     }
 
-    // if in satellite mode, restore satellite state
     if (currentMode == "satellite") {
         satWorld = new SatelliteWorld(&blockchain, 15.0);
         ifstream orbitFile("satellite_orbit.json");
@@ -600,14 +703,12 @@ int main() {
 
     trafficSim = new TrafficSimulator(&cityGraph, &blockchain);
 
-    // ── start Winsock ──
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         cout << "WSAStartup failed!" << endl;
         return 1;
     }
 
-    // ── create socket ──
     SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (serverSocket == INVALID_SOCKET) {
         cout << "Socket creation failed!" << endl;
@@ -615,11 +716,9 @@ int main() {
         return 1;
     }
 
-    // allow port reuse (helpful when restarting quickly)
     int opt = 1;
     setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
 
-    // bind to port
     sockaddr_in serverAddr{};
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
@@ -627,13 +726,11 @@ int main() {
 
     if (bind(serverSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
         cout << "Bind failed! Port " << PORT << " might already be in use." << endl;
-        cout << "Try: netstat -ano | findstr :" << PORT << endl;
         closesocket(serverSocket);
         WSACleanup();
         return 1;
     }
 
-    // start listening
     if (listen(serverSocket, 10) == SOCKET_ERROR) {
         cout << "Listen failed!" << endl;
         closesocket(serverSocket);
@@ -642,14 +739,13 @@ int main() {
     }
 
     cout << "\nServer running on http://localhost:" << PORT << endl;
+    cout << "Mode: " << currentMode << " | Nodes: " << cityGraph.getNodeCount() << endl;
     cout << "Press Ctrl+C to stop.\n" << endl;
 
-    // ── main accept loop ──
     while (true) {
         SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
         if (clientSocket == INVALID_SOCKET) continue;
 
-        // read the request (up to 8KB)
         char buffer[8192];
         memset(buffer, 0, sizeof(buffer));
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
@@ -668,7 +764,6 @@ int main() {
         closesocket(clientSocket);
     }
 
-    // cleanup (never actually reached, but good practice)
     delete trafficSim;
     delete satWorld;
     closesocket(serverSocket);

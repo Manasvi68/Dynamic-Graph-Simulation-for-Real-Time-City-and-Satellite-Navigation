@@ -3,17 +3,18 @@
 #include "graph.h"
 #include "blockchain.h"
 using namespace std;
-class TrafficSimulator{
-    private:
-    CityGraph* graph;          //pointer to the city graph
-    Blockchain* blockchain;    //pointer to the blockchain
-    public:
+
+class TrafficSimulator {
+private:
+    CityGraph* graph;
+    Blockchain* blockchain;
+
+public:
     TrafficSimulator(CityGraph* g, Blockchain* bc);
-    //randomly pick a road and increase it's weight(simulates congestion)
-    void randomCongestion();
-    //randomly pick a road and remove it(simulates road closure)
-    void randomClosure();
-    //do one random simulation step(either congestion or closure)
     void stepOnce();
+
+private:
+    void applyCondition(int fromId, int toId, const string& condition, double multiplier);
+    void recoverRoad(int fromId, int toId);
 };
 #endif

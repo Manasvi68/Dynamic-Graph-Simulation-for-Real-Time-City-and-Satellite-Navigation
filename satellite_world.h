@@ -9,53 +9,46 @@
 
 using namespace std;
 
-// a single orbiting body (satellite)
 struct Body {
     string name;
-    double centerX, centerY;    // center of orbit
-    double radius;              // orbit radius
-    double angle;               // current angle in radians
-    double speed;               // angular speed (radians per step)
-    double posX, posY;          // current position (computed from orbit)
+    double centerX, centerY;
+    double semiMajor;       // semi-major axis
+    double eccentricity;    // 0 = circle, <1 = ellipse
+    double inclination;     // tilt angle (radians) for visual variety
+    double angle;           // current angle in radians
+    double speed;           // angular speed (radians per step)
+    double posX, posY;      // current position
 };
 
 class SatelliteWorld {
 private:
     vector<Body> bodies;
-    CityGraph internalGraph;        // the graph built from satellite positions
-    Blockchain* blockchain;         // where we log link changes
-    double maxLinkDistance;          // max distance for two satellites to form a link
-
-    // current set of edges as "from-to" string keys for change detection
+    CityGraph internalGraph;
+    Blockchain* blockchain;
+    double maxLinkDistance;
+    double planetRadius;    // for LOS occlusion check
     set<string> currentEdgeKeys;
 
-    // helper to make a consistent edge key regardless of direction
     string makeEdgeKey(string a, string b);
+    bool hasLineOfSight(int i, int j) const;
 
 public:
     SatelliteWorld(Blockchain* bc, double linkDist);
 
-    // add a new satellite with orbital parameters
-    void addBody(string name, double cx, double cy, double r, double angle, double speed);
+    void addBody(string name, double cx, double cy, double semiMajor,
+                 double angle, double speed, double eccentricity = 0.0,
+                 double inclination = 0.0);
 
-    // advance all orbits by one step and rebuild the graph
     void orbitStep();
-
-    // rebuild the graph based on current satellite positions and distance threshold
     void rebuildTopology();
 
-    // get the internal graph (for pathfinding and server)
     CityGraph& getGraph();
-
-    // get current positions for A* heuristic
     vector<double> getPositionsX() const;
     vector<double> getPositionsY() const;
+    const vector<Body>& getBodies() const;
 
-    // save/load orbital state
     void saveToFiles(string orbitFile) const;
     void loadFromFiles(string orbitFile);
-
-    // get body count
     int getBodyCount() const;
 };
 

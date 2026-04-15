@@ -1,17 +1,69 @@
-import React, { useMemo } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet';
-import { CRS } from 'leaflet';
+import React, { useMemo, useCallback, useState } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, Marker } from 'react-leaflet';
+import { CRS, divIcon } from 'leaflet';
 import MapResize from './MapResize';
-import { getNodePosition } from '../data/cityCoords';
+import MapLegend from './MapLegend';
+import { getNodePosition } from '../data/jodhpurNodes';
+import osrmRoutes from '../data/jodhpurRoutes.json';
 
-function GraphMap({ graphData, pathData, mode }) {
+const CONDITION_STYLES = {
+  normal:        { color: '#64748b', weight: 2, dashArray: null,    opacity: 0.35 },
+  light_traffic: { color: '#eab308', weight: 2.5, dashArray: null,  opacity: 0.65 },
+  heavy_traffic: { color: '#f97316', weight: 3, dashArray: null,    opacity: 0.75 },
+  congestion:    { color: '#dc2626', weight: 3.5, dashArray: null,  opacity: 0.8  },
+  accident:      { color: '#ef4444', weight: 4, dashArray: null,    opacity: 0.9  },
+  construction:  { color: '#d97706', weight: 3, dashArray: '8,6',   opacity: 0.75 },
+  closed:        { color: '#71717a', weight: 2, dashArray: '6,8',   opacity: 0.55 },
+};
+
+// Multi-route styles
+const PRIMARY_STYLE   = { color: '#22d3ee', weight: 5, dashArray: '10,8', opacity: 0.95, className: 'path-animated' };
+const ALT_STYLE       = { color: '#f59e0b', weight: 3.5, dashArray: '8,6', opacity: 0.80 };
+const SECOND_BEST_STYLE = { color: '#a855f7', weight: 2.5, dashArray: '4,6', opacity: 0.65 };
+
+function makeIconMarker(text, className) {
+  return divIcon({
+    html: `<span class="${className}">${text}</span>`,
+    className: 'condition-icon-wrapper',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+}
+
+function midpoint(pts) {
+  if (!pts || pts.length === 0) return [0, 0];
+  const mid = Math.floor(pts.length / 2);
+  return pts[mid];
+}
+
+/* Build a set of edge keys from a path result */
+function buildEdgeKeys(pathResult) {
+  if (!pathResult?.found) return new Set();
+  const keys = new Set();
+  for (let i = 0; i < pathResult.path.length - 1; i++) {
+    const a = pathResult.path[i].id;
+    const b = pathResult.path[i + 1].id;
+    keys.add(`${a}-${b}`);
+    keys.add(`${b}-${a}`);
+  }
+  return keys;
+}
+
+function buildNodeIds(pathResult) {
+  if (!pathResult?.found) return new Set();
+  return new Set(pathResult.path.map((step) => step.id));
+}
+
+function GraphMap({ graphData, pathData, altPathData, mode }) {
+  const [showAllRoads, setShowAllRoads] = useState(false);
   const nodePositions = useMemo(() => {
     const positions = {};
     if (!graphData?.nodes) return positions;
-
     graphData.nodes.forEach((node, index) => {
       if (mode === 'satellite' && node.posX !== undefined) {
         positions[node.id] = [node.posY, node.posX];
+      } else if (node.lat && node.lng) {
+        positions[node.id] = [node.lat, node.lng];
       } else {
         positions[node.id] = getNodePosition(node.name, index);
       }
@@ -19,56 +71,144 @@ function GraphMap({ graphData, pathData, mode }) {
     return positions;
   }, [graphData, mode]);
 
-  const pathNodeIds = useMemo(() => {
-    if (!pathData?.found) return new Set();
-    return new Set(pathData.path.map((step) => step.id));
-  }, [pathData]);
+  // Primary path
+  const primaryEdgeKeys = useMemo(() => buildEdgeKeys(pathData), [pathData]);
+  const primaryNodeIds = useMemo(() => buildNodeIds(pathData), [pathData]);
 
-  const pathEdgeKeys = useMemo(() => {
-    if (!pathData?.found) return new Set();
+  // Second-best path (from primary algo's secondBest)
+  const secondBestEdgeKeys = useMemo(() => {
+    if (!pathData?.secondBest?.found) return new Set();
     const keys = new Set();
-    for (let i = 0; i < pathData.path.length - 1; i++) {
-      const a = pathData.path[i].id;
-      const b = pathData.path[i + 1].id;
+    for (let i = 0; i < pathData.secondBest.path.length - 1; i++) {
+      const a = pathData.secondBest.path[i].id;
+      const b = pathData.secondBest.path[i + 1].id;
       keys.add(`${a}-${b}`);
       keys.add(`${b}-${a}`);
     }
     return keys;
   }, [pathData]);
 
-  const mapCenter = mode === 'satellite' ? [0, 0] : [28.61, 77.18];
-  const mapZoom = mode === 'satellite' ? 3 : 12;
+  const edgeNameIndex = useMemo(() => {
+    if (!graphData?.edges) return {};
+    const idx = {};
+    graphData.edges.forEach((edge) => {
+      idx[`${edge.from}-${edge.to}`] = { fromName: edge.fromName, toName: edge.toName };
+    });
+    return idx;
+  }, [graphData]);
+
+  const renderedEdges = useMemo(() => {
+    if (!graphData?.edges) return [];
+    const unique = [];
+    const seen = new Set();
+    graphData.edges.forEach((edge) => {
+      const a = Math.min(edge.from, edge.to);
+      const b = Math.max(edge.from, edge.to);
+      const key = `${a}-${b}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(edge);
+    });
+    return unique;
+  }, [graphData]);
+
+  const mapCenter = mode === 'satellite' ? [0, 0] : [26.285, 73.020];
+  const mapZoom = mode === 'satellite' ? 3 : 13;
   const crs = mode === 'satellite' ? CRS.Simple : CRS.EPSG3857;
+
+  const getEdgePolyline = useCallback((edge) => {
+    const info = edgeNameIndex[`${edge.from}-${edge.to}`];
+    if (!info) return null;
+    const key1 = `${info.fromName}-${info.toName}`;
+    const key2 = `${info.toName}-${info.fromName}`;
+    let pts = osrmRoutes[key1] || osrmRoutes[key2];
+    if (pts) {
+      if (osrmRoutes[key2] && !osrmRoutes[key1]) pts = [...pts].reverse();
+      return pts;
+    }
+    const fromPos = nodePositions[edge.from];
+    const toPos = nodePositions[edge.to];
+    if (fromPos && toPos) return [fromPos, toPos];
+    return null;
+  }, [edgeNameIndex, nodePositions]);
 
   if (!graphData?.nodes) {
     return (
       <div className="flex h-full min-h-0 w-full items-center justify-center rounded-xl border border-white/10 bg-zinc-950">
         <div className="px-4 text-center">
-          <p className="text-base font-bold text-white">Loading map…</p>
+          <p className="text-base font-bold text-white">Loading map...</p>
           <p className="mt-2 text-sm font-medium text-zinc-300">Waiting for graph data</p>
         </div>
       </div>
     );
   }
 
+  function getEdgeStyle(edge, edgeKey) {
+    // Priority: primary > secondBest > condition
+    if (primaryEdgeKeys.has(edgeKey)) return PRIMARY_STYLE;
+    if (secondBestEdgeKeys.has(edgeKey)) return SECOND_BEST_STYLE;
+    const condition = edge.condition || 'normal';
+    return CONDITION_STYLES[condition] || CONDITION_STYLES.normal;
+  }
+
+  const conditionIcons = [];
+  renderedEdges.forEach((edge, idx) => {
+    const condition = edge.condition || 'normal';
+    if (condition !== 'accident' && condition !== 'closed' && condition !== 'construction') return;
+    const polyline = getEdgePolyline(edge);
+    if (!polyline) return;
+    const pos = midpoint(polyline);
+    const text = condition === 'accident' ? '\u26A0\uFE0F' : condition === 'closed' ? '\uD83D\uDEA7' : '\uD83D\uDD36';
+    conditionIcons.push({ pos, text, key: `icon-${edge.from}-${edge.to}-${idx}`, condition });
+  });
+
+  // Determine if an edge should be visible
+  function shouldShowEdge(edge) {
+    const edgeKey = `${edge.from}-${edge.to}`;
+    if (primaryEdgeKeys.has(edgeKey)) return true;
+    if (secondBestEdgeKeys.has(edgeKey)) return true;
+    if (showAllRoads) return true;
+    const hasIssue = (edge.condition || 'normal') !== 'normal';
+    if (hasIssue) return true;
+    return false;
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/[0.08] bg-[#0a0a0e] shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+    <div className="rounded-xl border border-white/[0.08] bg-[#0a0a0e] shadow-[0_0_40px_rgba(0,0,0,0.5)]" style={{display:'flex',flexDirection:'column',height:'100%',minHeight:0,flex:'1 1 0%',overflow:'hidden'}}>
       <div className="flex shrink-0 items-center justify-between border-b border-white/15 bg-zinc-900 px-3 py-2.5">
         <span className="text-xs font-bold uppercase tracking-widest text-white">
-          {mode === 'satellite' ? 'Satellite view' : 'City map'}
+          {mode === 'satellite' ? 'Satellite view' : 'Jodhpur city map'}
         </span>
-        <span className="font-mono text-xs font-semibold text-zinc-200">
-          {graphData.nodeCount} nodes · {graphData.edges?.length ?? 0} edges
-        </span>
+        <div className="flex items-center gap-2">
+          {mode !== 'satellite' && (
+            <button
+              type="button"
+              onClick={() => setShowAllRoads((v) => !v)}
+              className="rounded border border-white/20 bg-black/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-200 hover:bg-black/50"
+            >
+              {showAllRoads ? 'Focus path' : 'Show all roads'}
+            </button>
+          )}
+          <span className="font-mono text-xs font-semibold text-zinc-200">
+            {graphData.nodeCount} nodes · {renderedEdges.length} roads
+          </span>
+        </div>
       </div>
-      <div className="relative min-h-0 flex-1">
+      <div style={{position:'relative',flex:'1 1 0%',minHeight:0,overflow:'hidden'}}>
         <MapContainer
           key={mode}
           center={mapCenter}
           zoom={mapZoom}
           crs={crs}
-          className="z-0 h-full w-full rounded-b-xl"
-          style={{ background: mode === 'satellite' ? '#0a0a0e' : '#dde4ed' }}
+          className="z-0 rounded-b-xl"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: mode === 'satellite' ? '#0a0a0e' : '#dde4ed',
+          }}
         >
           {mode !== 'satellite' && (
             <TileLayer
@@ -79,51 +219,85 @@ function GraphMap({ graphData, pathData, mode }) {
 
           <MapResize />
 
-          {graphData.edges?.map((edge, idx) => {
-            const fromPos = nodePositions[edge.from];
-            const toPos = nodePositions[edge.to];
-            if (!fromPos || !toPos) return null;
-
-            const onPath = pathEdgeKeys.has(`${edge.from}-${edge.to}`);
+          {/* Render edges — bottom layer: secondBest, then alt, then primary on top */}
+          {renderedEdges.map((edge, idx) => {
+            if (!shouldShowEdge(edge)) return null;
+            const polyline = getEdgePolyline(edge);
+            if (!polyline) return null;
+            const edgeKey = `${edge.from}-${edge.to}`;
+            const style = getEdgeStyle(edge, edgeKey);
 
             return (
               <Polyline
                 key={`e-${edge.from}-${edge.to}-${idx}`}
-                positions={[fromPos, toPos]}
+                positions={polyline}
                 pathOptions={{
-                  color: onPath ? '#22d3ee' : '#52525b',
-                  weight: onPath ? 5 : 2,
-                  opacity: onPath ? 1 : 0.55,
+                  color: style.color,
+                  weight: style.weight,
+                  opacity: style.opacity,
+                  dashArray: style.dashArray || undefined,
+                  className: style.className || undefined,
                 }}
-              />
+              >
+                <Tooltip sticky>
+                  <div className="edge-tooltip">
+                    <strong>{edge.fromName} → {edge.toName}</strong>
+                    <br />
+                    Weight: {edge.weight?.toFixed(2)} km
+                    {edge.baseWeight && edge.baseWeight !== edge.weight && (
+                      <> (base: {edge.baseWeight?.toFixed(2)})</>
+                    )}
+                    <br />
+                    Condition: <span className={`cond-${edge.condition || 'normal'}`}>{edge.condition || 'normal'}</span>
+                  </div>
+                </Tooltip>
+              </Polyline>
             );
           })}
+
+          {conditionIcons.map((ic) => (
+            <Marker
+              key={ic.key}
+              position={ic.pos}
+              icon={makeIconMarker(ic.text, `condition-icon condition-icon-${ic.condition}`)}
+            />
+          ))}
 
           {graphData.nodes.map((node) => {
             const pos = nodePositions[node.id];
             if (!pos) return null;
+            const onPrimary = primaryNodeIds.has(node.id);
+            let fillColor = '#e4e4e7';
+            let strokeColor = '#71717a';
+            let radius = 7;
 
-            const onPath = pathNodeIds.has(node.id);
+            if (onPrimary) {
+              fillColor = '#22d3ee';
+              strokeColor = '#0891b2';
+              radius = 10;
+            }
 
             return (
               <CircleMarker
                 key={`n-${node.id}`}
                 center={pos}
-                radius={onPath ? 10 : 7}
+                radius={radius}
                 pathOptions={{
-                  fillColor: onPath ? '#22d3ee' : '#e4e4e7',
-                  color: onPath ? '#0891b2' : '#71717a',
+                  fillColor,
+                  color: strokeColor,
                   weight: 2,
                   fillOpacity: 0.95,
                 }}
               >
-                <Tooltip direction="top" offset={[0, -8]} permanent={graphData.nodes.length <= 15}>
+                <Tooltip direction="top" offset={[0, -8]} permanent={graphData.nodes.length <= 20}>
                   <span className="text-xs font-semibold text-zinc-900">{node.name}</span>
                 </Tooltip>
               </CircleMarker>
             );
           })}
         </MapContainer>
+
+        {mode !== 'satellite' && <MapLegend />}
       </div>
     </div>
   );

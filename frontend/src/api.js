@@ -51,7 +51,15 @@ export async function getMode() {
   return res.json();
 }
 
-// switch mode (city / satellite)
+export async function setCondition(from, to, condition) {
+  const res = await fetch(`${BASE}/api/road/condition`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to, condition }),
+  });
+  return res.json();
+}
+
 export async function setMode(mode) {
   const res = await fetch(`${BASE}/api/mode`, {
     method: 'POST',

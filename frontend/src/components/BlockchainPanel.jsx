@@ -2,9 +2,17 @@ import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Shield, ShieldCheck } from 'lucide-react';
 
 const typeLabels = {
+  normal: 'Normal',
+  light_traffic: 'Light traffic',
+  heavy_traffic: 'Heavy traffic',
+  congestion: 'Congestion',
+  accident: 'Accident',
+  construction: 'Construction',
+  closed: 'Road closed',
   CONGESTION: 'Traffic heavier',
   ROAD_CLOSED: 'Road closed',
   ROAD_UPDATE: 'Road updated',
+  RECOVERY: 'Road recovered',
   SAT_LINK_UP: 'Satellite link added',
   SAT_LINK_DOWN: 'Satellite link lost',
 };
