@@ -494,7 +494,7 @@ function App() {
 
             {/* ── Event Log Section ── */}
             <Section icon={<Shield />} title="Event Log" accent="emerald" defaultOpen={true}>
-              <div className="min-h-[100px] max-h-[300px] overflow-hidden">
+              <div className="min-h-[100px] max-h-[300px] overflow-y-auto event-log-scroll">
                 <BlockchainPanel blocks={blocks} />
               </div>
             </Section>
