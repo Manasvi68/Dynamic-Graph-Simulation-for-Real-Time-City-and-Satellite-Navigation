@@ -189,14 +189,6 @@ Current validation is scenario-based:
 - Satellite link/path behavior verification
 
 ---
-
-## Documentation
-
-- Detailed report: `PROJECT_REPORT.md`
-- Implementation logs: `implementation/00_overview.md` to `implementation/06_ui_polish.md`
-
----
-
 ## Future Improvements
 
 - Automated test suite (backend + frontend)
@@ -206,7 +198,3 @@ Current validation is scenario-based:
 - Stronger cryptographic hashing for ledger integrity
 
 ---
-
-## Authors
-
-Student DSA project team.
